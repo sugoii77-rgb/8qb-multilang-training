@@ -1,12 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// MyMemory free API: no key needed, 10,000 words/day, reliable on Vercel
+async function tryMyMemory(text: string, target: string): Promise<string | null> {
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${target}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data?.responseStatus === 200 && data?.responseData?.translatedText) {
+      return data.responseData.translatedText;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// LibreTranslate fallback endpoints
 const LIBRE_ENDPOINTS = [
   process.env.LIBRETRANSLATE_URL
     ? `${process.env.LIBRETRANSLATE_URL}/translate`
     : null,
-  "https://libretranslate.com/translate",
   "https://translate.argosopentech.com/translate",
+  "https://libretranslate.com/translate",
 ].filter(Boolean) as string[];
+
+async function tryLibre(text: string, target: string): Promise<string | null> {
+  for (const endpoint of LIBRE_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: text, source: "auto", target, format: "text" }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.translatedText) return data.translatedText;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   let body: { text?: string; target?: string };
@@ -17,35 +53,30 @@ export async function POST(req: NextRequest) {
   }
 
   const { text, target } = body;
+
   if (!text || !target) {
-    return NextResponse.json({ error: "text와 target 값이 필요합니다." }, { status: 400 });
+    return NextResponse.json(
+      { error: "text와 target 값이 필요합니다." },
+      { status: 400 }
+    );
   }
 
-  let lastError = "";
-  for (const endpoint of LIBRE_ENDPOINTS) {
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ q: text, source: "auto", target, format: "text" }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) {
-        lastError = `서버 오류 (${res.status})`;
-        continue;
-      }
-      const data = await res.json();
-      if (data?.translatedText) {
-        return NextResponse.json({ translatedText: data.translatedText });
-      }
-      lastError = "번역 결과를 받지 못했습니다.";
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : "알 수 없는 오류";
-    }
+  // 1차: MyMemory (가장 안정적)
+  const myMemoryResult = await tryMyMemory(text, target);
+  if (myMemoryResult) {
+    return NextResponse.json({ translatedText: myMemoryResult });
+  }
+
+  // 2차: LibreTranslate 폴백
+  const libreResult = await tryLibre(text, target);
+  if (libreResult) {
+    return NextResponse.json({ translatedText: libreResult });
   }
 
   return NextResponse.json(
-    { error: `번역 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.\n마지막 오류: ${lastError}` },
+    {
+      error: "번역 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    },
     { status: 503 }
   );
 }
