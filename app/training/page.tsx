@@ -1104,50 +1104,49 @@ export default function TrainingPage() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const lang = getValidLanguage(params.get("lang"));
-
-    setUiLanguage(lang);
-    setTranslateLanguage(lang === "ko" ? "en" : lang);
-    setInputText(eightQbByLanguage[lang][0]);
-    setIsAutoPlaying(false);
-    setStatusMessage(uiText[lang].initialStatus);
-  }, []);
-
-  useEffect(() => {
-    if (!isAutoPlaying) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
+    if (!isAutoPlaying) return;
+    let cancelled = false;
+    const playSequence = async () => {
+      for (let q = 0; q < 8; q++) {
+        if (cancelled) return;
+        setSelectedItemIndex(q);
+        setInputText(eightQbByLanguage[uiLanguage][q]);
+        await new Promise<void>((resolve) => {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+          }
+          const audio = new Audio(`/audio/${uiLanguage}/q${q + 1}_main.mp3`);
+          audioRef.current = audio;
+          audio.onended = () => resolve();
+          audio.onerror = () => setTimeout(resolve, 300);
+          audio.play().catch(() => setTimeout(resolve, 300));
+        });
+        if (cancelled) return;
+      }
       const currentIndex = autoPlayLanguageOrder.indexOf(uiLanguage);
-      const nextIndex =
-        currentIndex >= 0
-          ? (currentIndex + 1) % autoPlayLanguageOrder.length
-          : 0;
-      const nextLanguage = autoPlayLanguageOrder[nextIndex];
-      const nextItemIndex = selectedItemIndex ?? 0;
-
-      setUiLanguage(nextLanguage);
-      setTranslateLanguage(nextLanguage);
-      setInputText(eightQbByLanguage[nextLanguage][nextItemIndex]);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % autoPlayLanguageOrder.length : 0;
+      const nextLang = autoPlayLanguageOrder[nextIndex];
+      setUiLanguage(nextLang);
+      setTranslateLanguage(nextLang);
+      setInputText(eightQbByLanguage[nextLang][0]);
+      setSelectedItemIndex(0);
       setTranslatedText("");
       setSelectedQuizAnswer(null);
-      setStatusMessage(uiText[nextLanguage].languageChanged);
-
+      setStatusMessage(uiText[nextLang].languageChanged);
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/training?lang=${nextLang}`);
+      }
+    };
+    playSequence();
+    return () => {
+      cancelled = true;
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
-        audioRef.current = null;
       }
-      const _nextAudio = new Audio(`/audio/${nextLanguage}/q${nextItemIndex + 1}_main.mp3`);
-      audioRef.current = _nextAudio;
-      _nextAudio.play().catch(() => {});
-      window.history.replaceState(null, "", `/training?lang=${nextLanguage}`);
-    }, 5000);
-
-    return () => window.clearTimeout(timer);
-  }, [isAutoPlaying, uiLanguage, selectedItemIndex]);
+    };
+  }, [isAutoPlaying, uiLanguage]);
 
   const buildDeepLearningText = () => {
     if (selectedItemIndex === null || !selectedSentence) {
@@ -1333,13 +1332,16 @@ export default function TrainingPage() {
     if (typeof window !== "undefined") {
       window.speechSynthesis.cancel();
     }
-
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    setSelectedItemIndex(0);
     setIsAutoPlaying(true);
     setTranslatedText("");
     setSelectedQuizAnswer(null);
-    setStatusMessage("자동 재생을 시작합니다. 5초마다 다음 언어로 전환됩니다.");
-    const currentIdx = selectedItemIndex ?? 0;
-    playAudio(`q${currentIdx + 1}_main`, currentSentences[currentIdx]);
+    setStatusMessage("Auto play started. Playing 8 sentences in order, then moving to next language.");
   };
 
   const handleSpeak = () => {
