@@ -10,6 +10,9 @@ const langMap: Record<string, string> = {
 export async function POST(request: NextRequest) {
   try {
     const { text, from, to } = await request.json();
+    if (!AZURE_KEY) {
+      return NextResponse.json({ translatedText: '', error: 'Azure key not configured' });
+    }
     const res = await fetch(
       `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=${langMap[from]||from}&to=${langMap[to]||to}`,
       {
@@ -23,9 +26,12 @@ export async function POST(request: NextRequest) {
       }
     );
     const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: data }, { status: res.status });
+    if (!res.ok) {
+      const msg = data?.error?.message || data?.error?.code || JSON.stringify(data);
+      return NextResponse.json({ translatedText: '', error: String(msg) }, { status: res.status });
+    }
     return NextResponse.json({ translatedText: data[0]?.translations[0]?.text || '' });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ translatedText: '', error: String(e) }, { status: 500 });
   }
 }
