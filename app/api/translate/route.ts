@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ translatedText: '', error: 'Azure key not configured' });
     }
     const res = await fetch(
-      `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=${langMap[from]||from}&to=${langMap[to]||to}`,
+      `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${langMap[to]||to}`,
       {
         method: 'POST',
         headers: {
@@ -35,3 +35,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ translatedText: '', error: String(e) }, { status: 500 });
   }
 }
+
