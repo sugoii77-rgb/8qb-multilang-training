@@ -1,230 +1,1764 @@
 "use client";
 
-import { useState, useRef } from "react";
-import Link from "next/link";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-const LANGUAGES = [
-  { label: "한국어", value: "ko", speech: "ko-KR" },
-  { label: "English", value: "en", speech: "en-US" },
-  { label: "Tiếng Việt (베트남어)", value: "vi", speech: "vi-VN" },
-  { label: "বাংলা (방글라데시어)", value: "bn", speech: "bn-BD" },
-  { label: "Oʻzbekcha (우즈베크어)", value: "uz", speech: "uz-UZ" },
-  { label: "Кыргызча (키르기스어)", value: "ky", speech: "ky-KG" },
-  { label: "اردو (우르두어)", value: "ur", speech: "ur-PK" },
-  { label: "नेपाली (네팔어)", value: "ne", speech: "ne-NP" },
-  { label: "中文 (중국어)", value: "zh", speech: "zh-CN" },
+type LanguageCode = "ko" | "en" | "vi" | "bn" | "uz" | "ru" | "ur" | "ne" | "zh" | "id";
+
+type LanguageOption = {
+  label: string;
+  shortLabel: string;
+  targetCode: LanguageCode;
+  speechCode: string;
+};
+
+type UiText = {
+  appLabel: string;
+  title: string;
+  subtitle: string;
+  uiLanguageSelect: string;
+  translateLanguageSelect: string;
+  eightQbTitle: string;
+  deepLearningTitle: string;
+  noItemSelected: string;
+  basicSentence: string;
+  whyImportant: string;
+  fieldExample: string;
+  checkQuestion: string;
+  quizTitle: string;
+  quizQuestion: string;
+  correctAnswerText: string;
+  wrongAnswerText: string;
+  sendDeepToInput: string;
+  translateDeep: string;
+  inputLabel: string;
+  pdfUpload: string;
+  pdfGuide: string;
+  translate: string;
+  translating: string;
+  speak: string;
+  stop: string;
+  resultLabel: string;
+  resultPlaceholder: string;
+  statusPrefix: string;
+  initialStatus: string;
+  selectedStatus: string;
+  languageChanged: string;
+  translateLanguageChanged: string;
+  deepLoaded: string;
+  emptyInput: string;
+  translatingStatus: string;
+  translatedStatus: string;
+  pdfOnly: string;
+  pdfLoading: string;
+  pdfLoaded: string;
+  pdfFail: string;
+  noSpeakText: string;
+  speaking: string;
+  speakDone: string;
+  speakError: string;
+  speakStopped: string;
+  deepWhyText: string;
+  deepExampleText: string;
+  deepCheckText: string;
+  quizOptionCorrect: string;
+  quizOptionBad1: string;
+  quizOptionBad2: string;
+  quizOptionBad3: string;
+};
+
+type TranslateResponse = {
+  translatedText?: string;
+  error?: string;
+  provider?: string;
+};
+
+type PdfResponse = {
+  text?: string;
+  error?: string;
+};
+
+const languages: LanguageOption[] = [
+  { label: "한국어 Korean", shortLabel: "한국어", targetCode: "ko", speechCode: "ko-KR" },
+  { label: "영어 English", shortLabel: "English", targetCode: "en", speechCode: "en-US" },
+  { label: "베트남어 Vietnamese", shortLabel: "Tiếng Việt", targetCode: "vi", speechCode: "vi-VN" },
+  { label: "방글라데시어 / 벵골어 Bengali", shortLabel: "বাংলা", targetCode: "bn", speechCode: "bn-BD" },
+  { label: "우즈베크어 Uzbek", shortLabel: "Oʻzbek", targetCode: "uz", speechCode: "uz-UZ" },
+  { label: "러시아어 Russian", shortLabel: "Русский", targetCode: "ru", speechCode: "ru-RU" },
+  { label: "우르두어 / 파키스탄 Urdu", shortLabel: "اردو", targetCode: "ur", speechCode: "ur-PK" },
+  { label: "네팔어 Nepali", shortLabel: "नेपाली", targetCode: "ne", speechCode: "ne-NP" },
+  { label: "중국어 Chinese", shortLabel: "中文", targetCode: "zh", speechCode: "zh-CN" },
+  { label: "인도네시아어 Indonesian", shortLabel: "Bahasa Indonesia", targetCode: "id", speechCode: "id-ID" }
 ];
 
-const QB_SENTENCES = [
-  "표준작업을 반드시 준수하십시오.",
-  "이상이 발생하면 즉시 작업을 멈추고 갭리더에게 보고하십시오.",
-  "불량품과 의심품은 정상품과 섞이지 않도록 격리하십시오.",
-  "작업자, 설비, 자재, 작업방법이 변경되면 반드시 확인하십시오.",
-  "검사 기준과 검사 위치를 정확히 확인하십시오.",
-  "제품 라벨, 박스 라벨, 식별표를 반드시 확인하십시오.",
-  "작업장 정리정돈을 유지하여 혼입과 누락을 방지하십시오.",
-  "안전이 가장 중요합니다. 위험하면 즉시 작업을 중지하십시오.",
+const uiText: Record<LanguageCode, UiText> = {
+  ko: {
+    appLabel: "8QB Multilang Training",
+    title: "8QB 다국어 음성 번역 시스템",
+    subtitle: "8QB 기본 교육, 심화학습, 퀴즈, PDF 텍스트 번역, 음성 출력을 지원합니다.",
+    uiLanguageSelect: "화면 / 교육 언어",
+    translateLanguageSelect: "번역 언어",
+    eightQbTitle: "8QB 교육 항목",
+    deepLearningTitle: "심화학습",
+    noItemSelected: "좌측 8QB 항목을 선택하면 심화학습과 퀴즈가 표시됩니다.",
+    basicSentence: "기본 문장",
+    whyImportant: "왜 중요한가",
+    fieldExample: "현장 예시",
+    checkQuestion: "작업자 확인 질문",
+    quizTitle: "Quiz",
+    quizQuestion: "이 항목에서 가장 올바른 행동은 무엇입니까?",
+    correctAnswerText: "정답입니다. 현장에서 반드시 적용하십시오.",
+    wrongAnswerText: "오답입니다. 다시 확인하십시오.",
+    sendDeepToInput: "심화학습 내용을 입력창으로 보내기",
+    translateDeep: "심화학습 번역",
+    inputLabel: "입력 문장 / PDF 추출 텍스트",
+    pdfUpload: "PDF 업로드",
+    pdfGuide: "텍스트형 PDF만 추출합니다. 스캔 이미지 PDF는 OCR을 하지 않습니다.",
+    translate: "번역",
+    translating: "번역 중...",
+    speak: "음성 출력",
+    stop: "음성 중지",
+    resultLabel: "번역 결과",
+    resultPlaceholder: "번역 결과가 여기에 표시됩니다. 필요하면 직접 수정할 수 있습니다.",
+    statusPrefix: "상태",
+    initialStatus: "교육 언어와 번역 언어를 선택한 뒤 8QB 항목을 선택하십시오.",
+    selectedStatus: "선택한 8QB 항목이 입력되었습니다.",
+    languageChanged: "화면 / 교육 언어가 변경되었습니다.",
+    translateLanguageChanged: "번역 언어가 변경되었습니다.",
+    deepLoaded: "심화학습 내용이 입력창에 들어갔습니다.",
+    emptyInput: "번역할 문장을 입력하십시오.",
+    translatingStatus: "번역 중입니다. 잠시만 기다려 주십시오.",
+    translatedStatus: "번역이 완료되었습니다.",
+    pdfOnly: "PDF 파일만 업로드할 수 있습니다.",
+    pdfLoading: "PDF 텍스트를 추출하는 중입니다.",
+    pdfLoaded: "PDF 텍스트가 입력창에 자동 입력되었습니다.",
+    pdfFail: "PDF 업로드 또는 텍스트 추출에 실패했습니다.",
+    noSpeakText: "읽을 문장이 없습니다.",
+    speaking: "음성 출력 중입니다.",
+    speakDone: "음성 출력이 완료되었습니다.",
+    speakError: "브라우저 음성 출력 중 오류가 발생했습니다. 해당 언어 음성이 PC에 없을 수 있습니다.",
+    speakStopped: "음성 출력이 중지되었습니다.",
+    deepWhyText: "이 항목은 품질, 안전, 고객 불량 예방을 위해 반드시 지켜야 하는 기본 규칙입니다.",
+    deepExampleText: "이 규칙을 지키지 않으면 혼입, 누락, 오조립, 미검사, 안전사고가 발생할 수 있습니다.",
+    deepCheckText: "작업 시작 전에 이 항목을 어떻게 지킬지 설명할 수 있습니까?",
+    quizOptionCorrect: "표준과 기준에 따라 즉시 확인하고 조치한다.",
+    quizOptionBad1: "시간이 없으면 그냥 계속 작업한다.",
+    quizOptionBad2: "갭리더에게 보고하지 않고 혼자 판단한다.",
+    quizOptionBad3: "의심품을 정상품과 함께 둔다."
+  },
+  en: {
+    appLabel: "8QB Multilang Training",
+    title: "8QB Multilingual Voice Translation System",
+    subtitle: "Supports 8QB basic training, deep learning, quiz, PDF text translation, and voice output.",
+    uiLanguageSelect: "Screen / training language",
+    translateLanguageSelect: "Translation language",
+    eightQbTitle: "8QB Training Items",
+    deepLearningTitle: "Deep Learning",
+    noItemSelected: "Select an 8QB item on the left to see deep learning and quiz.",
+    basicSentence: "Basic sentence",
+    whyImportant: "Why it is important",
+    fieldExample: "Field example",
+    checkQuestion: "Operator check question",
+    quizTitle: "Quiz",
+    quizQuestion: "What is the correct action for this item?",
+    correctAnswerText: "Correct. Apply this in the workplace.",
+    wrongAnswerText: "Incorrect. Please check again.",
+    sendDeepToInput: "Send deep learning text to input",
+    translateDeep: "Translate deep learning",
+    inputLabel: "Input sentence / extracted PDF text",
+    pdfUpload: "Upload PDF",
+    pdfGuide: "Only text-based PDFs are supported. Scanned image PDFs are not OCR processed.",
+    translate: "Translate",
+    translating: "Translating...",
+    speak: "Speak",
+    stop: "Stop voice",
+    resultLabel: "Translation result",
+    resultPlaceholder: "The translation result will appear here. You can edit it if needed.",
+    statusPrefix: "Status",
+    initialStatus: "Select a training language, translation language, and 8QB item.",
+    selectedStatus: "The selected 8QB item has been entered.",
+    languageChanged: "Screen / training language has been changed.",
+    translateLanguageChanged: "Translation language has been changed.",
+    deepLoaded: "Deep learning text has been entered.",
+    emptyInput: "Please enter a sentence to translate.",
+    translatingStatus: "Translating. Please wait.",
+    translatedStatus: "Translation completed.",
+    pdfOnly: "Only PDF files can be uploaded.",
+    pdfLoading: "Extracting text from the PDF.",
+    pdfLoaded: "PDF text has been entered automatically.",
+    pdfFail: "PDF upload or text extraction failed.",
+    noSpeakText: "There is no text to read.",
+    speaking: "Voice output is playing.",
+    speakDone: "Voice output completed.",
+    speakError: "Voice output error. This PC may not have a voice for the selected language.",
+    speakStopped: "Voice output stopped.",
+    deepWhyText: "This item is a basic rule that must be followed to protect quality, safety, and customer satisfaction.",
+    deepExampleText: "If this rule is not followed, mixed parts, missing parts, wrong assembly, missed inspection, or safety accidents may occur.",
+    deepCheckText: "Can you explain how you will follow this item before starting work?",
+    quizOptionCorrect: "Check and act immediately according to the standard and criteria.",
+    quizOptionBad1: "Keep working if there is no time.",
+    quizOptionBad2: "Decide alone without reporting to the GAP Leader.",
+    quizOptionBad3: "Place suspected parts together with good parts."
+  },
+  vi: {
+    appLabel: "Đào tạo 8QB đa ngôn ngữ",
+    title: "Hệ thống dịch và đọc giọng nói 8QB",
+    subtitle: "Hỗ trợ đào tạo 8QB, học sâu, câu hỏi, dịch văn bản PDF và phát giọng nói.",
+    uiLanguageSelect: "Ngôn ngữ màn hình / đào tạo",
+    translateLanguageSelect: "Ngôn ngữ dịch",
+    eightQbTitle: "Nội dung đào tạo 8QB",
+    deepLearningTitle: "Học sâu",
+    noItemSelected: "Chọn mục 8QB bên trái để xem học sâu và câu hỏi.",
+    basicSentence: "Câu cơ bản",
+    whyImportant: "Vì sao quan trọng",
+    fieldExample: "Ví dụ tại hiện trường",
+    checkQuestion: "Câu hỏi xác nhận cho công nhân",
+    quizTitle: "Quiz",
+    quizQuestion: "Hành động đúng nhất cho mục này là gì?",
+    correctAnswerText: "Đúng. Hãy áp dụng tại hiện trường.",
+    wrongAnswerText: "Sai. Vui lòng kiểm tra lại.",
+    sendDeepToInput: "Đưa nội dung học sâu vào ô nhập",
+    translateDeep: "Dịch học sâu",
+    inputLabel: "Câu nhập / văn bản PDF",
+    pdfUpload: "Tải PDF lên",
+    pdfGuide: "Chỉ hỗ trợ PDF dạng văn bản. PDF ảnh scan không được OCR.",
+    translate: "Dịch",
+    translating: "Đang dịch...",
+    speak: "Đọc giọng nói",
+    stop: "Dừng giọng nói",
+    resultLabel: "Kết quả dịch",
+    resultPlaceholder: "Kết quả dịch sẽ hiển thị ở đây. Có thể chỉnh sửa nếu cần.",
+    statusPrefix: "Trạng thái",
+    initialStatus: "Chọn ngôn ngữ đào tạo, ngôn ngữ dịch và mục 8QB.",
+    selectedStatus: "Mục 8QB đã chọn đã được nhập.",
+    languageChanged: "Ngôn ngữ màn hình / đào tạo đã thay đổi.",
+    translateLanguageChanged: "Ngôn ngữ dịch đã thay đổi.",
+    deepLoaded: "Nội dung học sâu đã được nhập.",
+    emptyInput: "Vui lòng nhập câu cần dịch.",
+    translatingStatus: "Đang dịch. Vui lòng chờ.",
+    translatedStatus: "Dịch hoàn tất.",
+    pdfOnly: "Chỉ có thể tải lên tệp PDF.",
+    pdfLoading: "Đang trích xuất văn bản từ PDF.",
+    pdfLoaded: "Văn bản PDF đã được nhập tự động.",
+    pdfFail: "Tải PDF hoặc trích xuất văn bản thất bại.",
+    noSpeakText: "Không có văn bản để đọc.",
+    speaking: "Đang phát giọng nói.",
+    speakDone: "Phát giọng nói hoàn tất.",
+    speakError: "Lỗi phát giọng nói. Máy tính này có thể không có giọng cho ngôn ngữ đã chọn.",
+    speakStopped: "Đã dừng giọng nói.",
+    deepWhyText: "Mục này là quy tắc cơ bản phải tuân thủ để bảo vệ chất lượng, an toàn và khách hàng.",
+    deepExampleText: "Nếu không tuân thủ, có thể xảy ra lẫn hàng, thiếu hàng, lắp sai, bỏ sót kiểm tra hoặc tai nạn an toàn.",
+    deepCheckText: "Trước khi bắt đầu, bạn có thể giải thích cách tuân thủ mục này không?",
+    quizOptionCorrect: "Kiểm tra và xử lý ngay theo tiêu chuẩn.",
+    quizOptionBad1: "Nếu không có thời gian thì cứ tiếp tục làm.",
+    quizOptionBad2: "Tự quyết định mà không báo GAP Leader.",
+    quizOptionBad3: "Để hàng nghi ngờ chung với hàng tốt."
+  },
+  zh: {
+    appLabel: "8QB 多语言培训",
+    title: "8QB 多语言语音翻译系统",
+    subtitle: "支持 8QB 基础培训、深入学习、测验、PDF 文本翻译和语音播放。",
+    uiLanguageSelect: "界面 / 培训语言",
+    translateLanguageSelect: "翻译语言",
+    eightQbTitle: "8QB 培训项目",
+    deepLearningTitle: "深入学习",
+    noItemSelected: "请选择左侧 8QB 项目，查看深入学习和测验。",
+    basicSentence: "基本句子",
+    whyImportant: "为什么重要",
+    fieldExample: "现场示例",
+    checkQuestion: "作业员确认问题",
+    quizTitle: "Quiz",
+    quizQuestion: "本项目最正确的行动是什么？",
+    correctAnswerText: "正确。请在现场务必执行。",
+    wrongAnswerText: "错误。请重新确认。",
+    sendDeepToInput: "将深入学习内容放入输入框",
+    translateDeep: "翻译深入学习",
+    inputLabel: "输入句子 / PDF 提取文本",
+    pdfUpload: "上传 PDF",
+    pdfGuide: "仅支持文本型 PDF。扫描图片 PDF 不进行 OCR。",
+    translate: "翻译",
+    translating: "正在翻译...",
+    speak: "语音播放",
+    stop: "停止语音",
+    resultLabel: "翻译结果",
+    resultPlaceholder: "翻译结果将显示在这里。必要时可以修改。",
+    statusPrefix: "状态",
+    initialStatus: "请选择培训语言、翻译语言和 8QB 项目。",
+    selectedStatus: "已输入所选 8QB 项目。",
+    languageChanged: "界面 / 培训语言已更改。",
+    translateLanguageChanged: "翻译语言已更改。",
+    deepLoaded: "深入学习内容已输入。",
+    emptyInput: "请输入要翻译的句子。",
+    translatingStatus: "正在翻译，请稍候。",
+    translatedStatus: "翻译完成。",
+    pdfOnly: "只能上传 PDF 文件。",
+    pdfLoading: "正在从 PDF 提取文本。",
+    pdfLoaded: "PDF 文本已自动输入。",
+    pdfFail: "PDF 上传或文本提取失败。",
+    noSpeakText: "没有可朗读的文本。",
+    speaking: "正在播放语音。",
+    speakDone: "语音播放完成。",
+    speakError: "语音播放出错。此 PC 可能没有所选语言的语音。",
+    speakStopped: "语音已停止。",
+    deepWhyText: "该项目是为了保证质量、安全和客户满意必须遵守的基本规则。",
+    deepExampleText: "如果不遵守，可能发生混入、漏装、错装、漏检或安全事故。",
+    deepCheckText: "开始作业前，你能说明如何遵守该项目吗？",
+    quizOptionCorrect: "按照标准和基准确认并立即处理。",
+    quizOptionBad1: "没有时间就继续作业。",
+    quizOptionBad2: "不报告 GAP Leader，自己判断。",
+    quizOptionBad3: "把可疑品和合格品放在一起。"
+  },
+  bn: {
+    appLabel: "8QB বহুভাষিক প্রশিক্ষণ",
+    title: "8QB বহুভাষিক ভয়েস অনুবাদ সিস্টেম",
+    subtitle: "8QB প্রশিক্ষণ, গভীর শিক্ষা, কুইজ, PDF অনুবাদ এবং ভয়েস আউটপুট সমর্থন করে।",
+    uiLanguageSelect: "স্ক্রিন / প্রশিক্ষণ ভাষা",
+    translateLanguageSelect: "অনুবাদ ভাষা",
+    eightQbTitle: "8QB প্রশিক্ষণ আইটেম",
+    deepLearningTitle: "গভীর শিক্ষা",
+    noItemSelected: "বাম দিকের 8QB আইটেম নির্বাচন করলে গভীর শিক্ষা ও কুইজ দেখা যাবে।",
+    basicSentence: "মূল বাক্য",
+    whyImportant: "কেন গুরুত্বপূর্ণ",
+    fieldExample: "কারখানার উদাহরণ",
+    checkQuestion: "কর্মী 확인 প্রশ্ন",
+    quizTitle: "Quiz",
+    quizQuestion: "এই আইটেমে সঠিক কাজ কোনটি?",
+    correctAnswerText: "সঠিক। কর্মস্থলে অবশ্যই প্রয়োগ করুন।",
+    wrongAnswerText: "ভুল। আবার 확인 করুন।",
+    sendDeepToInput: "গভীর শিক্ষার текст ইনপুটে পাঠান",
+    translateDeep: "গভীর শিক্ষা অনুবাদ",
+    inputLabel: "ইনপুট বাক্য / PDF টেক্সট",
+    pdfUpload: "PDF আপলোড",
+    pdfGuide: "শুধু টেক্সট PDF সমর্থিত। স্ক্যান PDF-এ OCR হবে না।",
+    translate: "অনুবাদ",
+    translating: "অনুবাদ হচ্ছে...",
+    speak: "ভয়েস চালান",
+    stop: "ভয়েস বন্ধ",
+    resultLabel: "অনুবাদ ফলাফল",
+    resultPlaceholder: "অনুবাদ এখানে দেখাবে। প্রয়োজনে সম্পাদনা করতে পারেন।",
+    statusPrefix: "অবস্থা",
+    initialStatus: "প্রশিক্ষণ ভাষা, অনুবাদ ভাষা এবং 8QB আইটেম নির্বাচন করুন।",
+    selectedStatus: "নির্বাচিত 8QB আইটেম ইনপুট হয়েছে।",
+    languageChanged: "স্ক্রিন / প্রশিক্ষণ ভাষা পরিবর্তন হয়েছে।",
+    translateLanguageChanged: "অনুবাদ ভাষা পরিবর্তন হয়েছে।",
+    deepLoaded: "গভীর শিক্ষার 내용 ইনপুট হয়েছে।",
+    emptyInput: "অনুবাদের জন্য বাক্য লিখুন।",
+    translatingStatus: "অনুবাদ হচ্ছে। অপেক্ষা করুন।",
+    translatedStatus: "অনুবাদ সম্পন্ন।",
+    pdfOnly: "শুধু PDF ফাইল আপলোড করা যাবে।",
+    pdfLoading: "PDF থেকে টেক্সট নেওয়া হচ্ছে।",
+    pdfLoaded: "PDF টেক্সট স্বয়ংক্রিয়ভাবে ইনপুট হয়েছে।",
+    pdfFail: "PDF আপলোড বা টেক্সট নেওয়া ব্যর্থ হয়েছে।",
+    noSpeakText: "পড়ার মতো টেক্সট নেই।",
+    speaking: "ভয়েস চলছে।",
+    speakDone: "ভয়েস সম্পন্ন হয়েছে।",
+    speakError: "ভয়েস ত্রুটি। এই PC-তে নির্বাচিত ভাষার ভয়েস নাও থাকতে পারে।",
+    speakStopped: "ভয়েস বন্ধ হয়েছে।",
+    deepWhyText: "এটি গুণমান, নিরাপত্তা এবং গ্রাহক সন্তুষ্টি রক্ষার জন্য মৌলিক নিয়ম।",
+    deepExampleText: "নিয়ম না মানলে মিশ্রণ, বাদ পড়া, ভুল সংযোজন, 미검사 বা নিরাপত্তা দুর্ঘটনা হতে পারে।",
+    deepCheckText: "কাজ শুরু করার আগে কীভাবে এটি মানবেন তা ব্যাখ্যা করতে পারেন?",
+    quizOptionCorrect: "মানদণ্ড অনুযায়ী 확인 করে সঙ্গে সঙ্গে ব্যবস্থা নিন।",
+    quizOptionBad1: "সময় না থাকলে কাজ চালিয়ে যান।",
+    quizOptionBad2: "GAP Leader-কে না জানিয়ে নিজে সিদ্ধান্ত নিন।",
+    quizOptionBad3: "সন্দেহজনক পণ্য ভালো পণ্যের সঙ্গে রাখুন।"
+  },
+  uz: {
+    appLabel: "8QB ko‘p tilli trening",
+    title: "8QB ko‘p tilli ovozli tarjima tizimi",
+    subtitle: "8QB trening, chuqur o‘rganish, test, PDF matn tarjimasi va ovozni qo‘llab-quvvatlaydi.",
+    uiLanguageSelect: "Ekran / trening tili",
+    translateLanguageSelect: "Tarjima tili",
+    eightQbTitle: "8QB trening bandlari",
+    deepLearningTitle: "Chuqur o‘rganish",
+    noItemSelected: "Chap tomondan 8QB bandini tanlang.",
+    basicSentence: "Asosiy jumla",
+    whyImportant: "Nima uchun muhim",
+    fieldExample: "Ish joyi misoli",
+    checkQuestion: "Operator tekshiruv savoli",
+    quizTitle: "Quiz",
+    quizQuestion: "Bu band bo‘yicha eng to‘g‘ri harakat qaysi?",
+    correctAnswerText: "To‘g‘ri. Ish joyida albatta bajaring.",
+    wrongAnswerText: "Noto‘g‘ri. Qayta tekshiring.",
+    sendDeepToInput: "Chuqur o‘rganish matnini kiritish",
+    translateDeep: "Chuqur o‘rganishni tarjima qilish",
+    inputLabel: "Kiritilgan jumla / PDF matni",
+    pdfUpload: "PDF yuklash",
+    pdfGuide: "Faqat matnli PDF qo‘llab-quvvatlanadi. Skan PDF uchun OCR qilinmaydi.",
+    translate: "Tarjima",
+    translating: "Tarjima qilinmoqda...",
+    speak: "Ovoz chiqarish",
+    stop: "Ovozni to‘xtatish",
+    resultLabel: "Tarjima natijasi",
+    resultPlaceholder: "Tarjima natijasi shu yerda ko‘rinadi.",
+    statusPrefix: "Holat",
+    initialStatus: "Trening tili, tarjima tili va 8QB bandini tanlang.",
+    selectedStatus: "Tanlangan 8QB bandi kiritildi.",
+    languageChanged: "Ekran / trening tili o‘zgardi.",
+    translateLanguageChanged: "Tarjima tili o‘zgardi.",
+    deepLoaded: "Chuqur o‘rganish matni kiritildi.",
+    emptyInput: "Tarjima qilish uchun matn kiriting.",
+    translatingStatus: "Tarjima qilinmoqda. Kuting.",
+    translatedStatus: "Tarjima tugadi.",
+    pdfOnly: "Faqat PDF fayl yuklash mumkin.",
+    pdfLoading: "PDF matni olinmoqda.",
+    pdfLoaded: "PDF matni avtomatik kiritildi.",
+    pdfFail: "PDF yuklash yoki matn olish muvaffaqiyatsiz.",
+    noSpeakText: "O‘qish uchun matn yo‘q.",
+    speaking: "Ovoz ijro etilmoqda.",
+    speakDone: "Ovoz tugadi.",
+    speakError: "Ovoz xatosi. Bu PC-da tanlangan til ovozi bo‘lmasligi mumkin.",
+    speakStopped: "Ovoz to‘xtatildi.",
+    deepWhyText: "Bu sifat, xavfsizlik va mijoz qoniqishini himoya qilish uchun asosiy qoidadir.",
+    deepExampleText: "Agar bajarilmasa, aralashish, yetishmaslik, noto‘g‘ri yig‘ish, tekshiruvdan o‘tmaslik yoki xavfsizlik hodisasi bo‘lishi mumkin.",
+    deepCheckText: "Ish boshlashdan oldin buni qanday bajarishingizni tushuntira olasizmi?",
+    quizOptionCorrect: "Standart va mezonga ko‘ra tekshirib, darhol chora ko‘rish.",
+    quizOptionBad1: "Vaqt bo‘lmasa, ishni davom ettirish.",
+    quizOptionBad2: "GAP Leaderga xabar bermasdan o‘zi qaror qilish.",
+    quizOptionBad3: "Shubhali detallarni yaxshi detallar bilan qo‘yish."
+  },
+  ru: {
+    appLabel: "8QB Multilang Training",
+    title: "Система многоязычного голосового перевода 8QB",
+    subtitle: "Поддерживает базовое обучение 8QB, углубленное обучение, тесты, перевод PDF-текста и голосовое воспроизведение.",
+    uiLanguageSelect: "Язык экрана / обучения",
+    translateLanguageSelect: "Язык перевода",
+    eightQbTitle: "Учебные пункты 8QB",
+    deepLearningTitle: "Углубленное обучение",
+    noItemSelected: "Выберите пункт 8QB слева, чтобы увидеть углубленное обучение и тест.",
+    basicSentence: "Основная фраза",
+    whyImportant: "Почему это важно",
+    fieldExample: "Пример на рабочем месте",
+    checkQuestion: "Контрольный вопрос для оператора",
+    quizTitle: "Quiz",
+    quizQuestion: "Какое действие является самым правильным для этого пункта?",
+    correctAnswerText: "Правильно. Применяйте это на рабочем месте.",
+    wrongAnswerText: "Неверно. Проверьте еще раз.",
+    sendDeepToInput: "Отправить содержание обучения во ввод",
+    translateDeep: "Перевести углубленное обучение",
+    inputLabel: "Вводимое предложение / извлеченный текст PDF",
+    pdfUpload: "Загрузить PDF",
+    pdfGuide: "Поддерживаются только текстовые PDF. Сканированные PDF не распознаются OCR.",
+    translate: "Перевести",
+    translating: "Перевод...",
+    speak: "Голосовое воспроизведение",
+    stop: "Остановить голос",
+    resultLabel: "Результат перевода",
+    resultPlaceholder: "Результат перевода появится здесь. При необходимости его можно отредактировать.",
+    statusPrefix: "Статус",
+    initialStatus: "Выберите язык обучения, язык перевода и пункт 8QB.",
+    selectedStatus: "Выбранный пункт 8QB введен.",
+    languageChanged: "Язык экрана / обучения изменен.",
+    translateLanguageChanged: "Язык перевода изменен.",
+    deepLoaded: "Содержание углубленного обучения введено.",
+    emptyInput: "Введите предложение для перевода.",
+    translatingStatus: "Идет перевод. Пожалуйста, подождите.",
+    translatedStatus: "Перевод завершен.",
+    pdfOnly: "Можно загрузить только PDF-файл.",
+    pdfLoading: "Извлечение текста из PDF.",
+    pdfLoaded: "Текст PDF автоматически введен.",
+    pdfFail: "Не удалось загрузить PDF или извлечь текст.",
+    noSpeakText: "Нет текста для озвучивания.",
+    speaking: "Голосовое воспроизведение выполняется.",
+    speakDone: "Голосовое воспроизведение завершено.",
+    speakError: "Ошибка голосового воспроизведения. На этом ПК может не быть голоса для выбранного языка.",
+    speakStopped: "Голосовое воспроизведение остановлено.",
+    deepWhyText: "Этот пункт является базовым правилом для защиты качества, безопасности и удовлетворенности клиента.",
+    deepExampleText: "Если это правило не соблюдать, могут возникнуть смешивание деталей, пропущенные детали, неправильная сборка, пропущенная проверка или несчастный случай.",
+    deepCheckText: "Перед началом работы можете объяснить, как вы будете соблюдать этот пункт?",
+    quizOptionCorrect: "Проверить по стандарту и критериям, затем немедленно выполнить правильное действие.",
+    quizOptionBad1: "Если заняты, продолжать работу без проверки.",
+    quizOptionBad2: "Самостоятельно принять решение без сообщения GAP Leader.",
+    quizOptionBad3: "Положить подозрительные детали вместе с хорошими деталями."
+  },
+  ur: {
+    appLabel: "8QB کثیر اللسانی تربیت",
+    title: "8QB کثیر اللسانی صوتی ترجمہ نظام",
+    subtitle: "8QB تربیت، گہری تعلیم، کوئز، PDF ترجمہ اور آواز کو سپورٹ کرتا ہے۔",
+    uiLanguageSelect: "اسکرین / تربیتی زبان",
+    translateLanguageSelect: "ترجمہ زبان",
+    eightQbTitle: "8QB تربیتی نکات",
+    deepLearningTitle: "گہری تعلیم",
+    noItemSelected: "بائیں طرف 8QB آئٹم منتخب کریں۔",
+    basicSentence: "بنیادی جملہ",
+    whyImportant: "کیوں اہم ہے",
+    fieldExample: "فیلڈ مثال",
+    checkQuestion: "آپریٹر چیک سوال",
+    quizTitle: "Quiz",
+    quizQuestion: "اس آئٹم کے لیے درست عمل کیا ہے؟",
+    correctAnswerText: "درست۔ اسے کام کی جگہ پر لاگو کریں۔",
+    wrongAnswerText: "غلط۔ دوبارہ چیک کریں۔",
+    sendDeepToInput: "گہری تعلیم متن کو ان پٹ میں بھیجیں",
+    translateDeep: "گہری تعلیم کا ترجمہ",
+    inputLabel: "ان پٹ جملہ / PDF متن",
+    pdfUpload: "PDF اپ لوڈ",
+    pdfGuide: "صرف ٹیکسٹ PDF سپورٹ ہے۔ اسکین PDF پر OCR نہیں ہوگا۔",
+    translate: "ترجمہ",
+    translating: "ترجمہ ہو رہا ہے...",
+    speak: "آواز چلائیں",
+    stop: "آواز بند",
+    resultLabel: "ترجمہ نتیجہ",
+    resultPlaceholder: "ترجمہ نتیجہ یہاں آئے گا۔",
+    statusPrefix: "حالت",
+    initialStatus: "تربیتی زبان، ترجمہ زبان اور 8QB آئٹم منتخب کریں۔",
+    selectedStatus: "منتخب 8QB آئٹم درج ہو گیا۔",
+    languageChanged: "اسکرین / تربیتی زبان تبدیل ہو گئی۔",
+    translateLanguageChanged: "ترجمہ زبان تبدیل ہو گئی۔",
+    deepLoaded: "گہری تعلیم متن درج ہو گیا۔",
+    emptyInput: "ترجمہ کے لیے متن درج کریں۔",
+    translatingStatus: "ترجمہ ہو رہا ہے۔ انتظار کریں۔",
+    translatedStatus: "ترجمہ مکمل۔",
+    pdfOnly: "صرف PDF فائل اپ لوڈ ہو سکتی ہے۔",
+    pdfLoading: "PDF متن نکالا جا رہا ہے۔",
+    pdfLoaded: "PDF متن خودکار طور پر درج ہو گیا۔",
+    pdfFail: "PDF اپ لوڈ یا متن نکالنا ناکام ہوا۔",
+    noSpeakText: "پڑھنے کے لیے متن نہیں ہے۔",
+    speaking: "آواز چل رہی ہے۔",
+    speakDone: "آواز مکمل ہوئی۔",
+    speakError: "آواز کی خرابی۔ اس PC میں منتخب زبان کی آواز نہیں ہو سکتی۔",
+    speakStopped: "آواز روک دی گئی۔",
+    deepWhyText: "یہ معیار، حفاظت اور کسٹمر اطمینان کے لیے بنیادی اصول ہے۔",
+    deepExampleText: "اگر عمل نہ کیا جائے تو مکسنگ، کمی، غلط اسمبلی، مسڈ انسپیکشن یا حفاظتی حادثہ ہو سکتا ہے۔",
+    deepCheckText: "کام شروع کرنے سے پہلے کیا آپ بتا سکتے ہیں کہ اس پر کیسے عمل کریں گے؟",
+    quizOptionCorrect: "معیار کے مطابق چیک کر کے فوراً کارروائی کریں۔",
+    quizOptionBad1: "وقت نہ ہو تو کام جاری رکھیں۔",
+    quizOptionBad2: "GAP Leader کو بتائے بغیر خود فیصلہ کریں۔",
+    quizOptionBad3: "مشکوک پارٹس کو اچھے پارٹس کے ساتھ رکھیں۔"
+  },
+  ne: {
+    appLabel: "8QB बहुभाषी तालिम",
+    title: "8QB बहुभाषी आवाज अनुवाद प्रणाली",
+    subtitle: "8QB तालिम, गहिरो सिकाइ, क्विज, PDF अनुवाद र आवाज समर्थन गर्दछ।",
+    uiLanguageSelect: "स्क्रिन / तालिम भाषा",
+    translateLanguageSelect: "अनुवाद भाषा",
+    eightQbTitle: "8QB तालिम विषयहरू",
+    deepLearningTitle: "गहिरो सिकाइ",
+    noItemSelected: "बायाँतर्फ 8QB विषय चयन गर्नुहोस्।",
+    basicSentence: "आधारभूत वाक्य",
+    whyImportant: "किन महत्त्वपूर्ण",
+    fieldExample: "कार्यस्थल उदाहरण",
+    checkQuestion: "अपरेटर जाँच प्रश्न",
+    quizTitle: "Quiz",
+    quizQuestion: "यस विषयमा सही कार्य के हो?",
+    correctAnswerText: "सही। कार्यस्थलमा लागू गर्नुहोस्।",
+    wrongAnswerText: "गलत। फेरि जाँच गर्नुहोस्।",
+    sendDeepToInput: "गहिरो सिकाइ पाठ इनपुटमा पठाउनुहोस्",
+    translateDeep: "गहिरो सिकाइ अनुवाद",
+    inputLabel: "इनपुट वाक्य / PDF पाठ",
+    pdfUpload: "PDF अपलोड",
+    pdfGuide: "केवल टेक्स्ट PDF समर्थन हुन्छ। स्क्यान PDF मा OCR हुँदैन।",
+    translate: "अनुवाद",
+    translating: "अनुवाद हुँदैछ...",
+    speak: "आवाज चलाउनुहोस्",
+    stop: "आवाज रोक्नुहोस्",
+    resultLabel: "अनुवाद परिणाम",
+    resultPlaceholder: "अनुवाद परिणाम यहाँ देखिन्छ।",
+    statusPrefix: "स्थिति",
+    initialStatus: "तालिम भाषा, अनुवाद भाषा र 8QB विषय चयन गर्नुहोस्।",
+    selectedStatus: "चयन गरिएको 8QB विषय प्रविष्ट भयो।",
+    languageChanged: "स्क्रिन / तालिम भाषा परिवर्तन भयो।",
+    translateLanguageChanged: "अनुवाद भाषा परिवर्तन भयो।",
+    deepLoaded: "गहिरो सिकाइ पाठ प्रविष्ट भयो।",
+    emptyInput: "अनुवाद गर्न पाठ प्रविष्ट गर्नुहोस्।",
+    translatingStatus: "अनुवाद हुँदैछ। पर्खनुहोस्।",
+    translatedStatus: "अनुवाद पूरा भयो।",
+    pdfOnly: "केवल PDF फाइल अपलोड गर्न सकिन्छ।",
+    pdfLoading: "PDF बाट पाठ निकालिँदैछ।",
+    pdfLoaded: "PDF पाठ स्वतः प्रविष्ट भयो।",
+    pdfFail: "PDF अपलोड वा पाठ निकाल्न असफल भयो।",
+    noSpeakText: "पढ्ने पाठ छैन।",
+    speaking: "आवाज चलिरहेको छ।",
+    speakDone: "आवाज पूरा भयो।",
+    speakError: "आवाज त्रुटि। यो PC मा चयन गरिएको भाषाको आवाज नहुन सक्छ।",
+    speakStopped: "आवाज रोकियो।",
+    deepWhyText: "यो गुणस्तर, सुरक्षा र ग्राहक सन्तुष्टिका लागि पालना गर्नुपर्ने आधारभूत नियम हो।",
+    deepExampleText: "पालना नगरेमा मिसावट, छुट, गलत असेंबली, निरीक्षण छुट्ने वा सुरक्षा दुर्घटना हुन सक्छ।",
+    deepCheckText: "काम सुरु गर्नु अघि यसलाई कसरी पालना गर्ने भनेर भन्न सक्नुहुन्छ?",
+    quizOptionCorrect: "मानक र मापदण्ड अनुसार जाँच गरी तुरुन्त कार्य गर्नुहोस्।",
+    quizOptionBad1: "समय नभए पनि काम जारी राख्नुहोस्।",
+    quizOptionBad2: "GAP Leader लाई रिपोर्ट नगरी आफैं निर्णय गर्नुहोस्।",
+    quizOptionBad3: "शंकास्पद सामान राम्रो सामानसँग राख्नुहोस्।"
+  },
+  id: {
+    appLabel: "8QB Multilang Training",
+    title: "Sistem Terjemahan Suara Multibahasa 8QB",
+    subtitle: "Mendukung pelatihan dasar 8QB, pembelajaran mendalam, kuis, terjemahan teks PDF, dan output suara.",
+    uiLanguageSelect: "Bahasa layar / pelatihan",
+    translateLanguageSelect: "Bahasa terjemahan",
+    eightQbTitle: "Materi pelatihan 8QB",
+    deepLearningTitle: "Pembelajaran mendalam",
+    noItemSelected: "Pilih item 8QB di sebelah kiri untuk menampilkan pembelajaran mendalam dan kuis.",
+    basicSentence: "Kalimat dasar",
+    whyImportant: "Mengapa penting",
+    fieldExample: "Contoh di lapangan",
+    checkQuestion: "Pertanyaan konfirmasi operator",
+    quizTitle: "Quiz",
+    quizQuestion: "Apa tindakan yang paling benar untuk item ini?",
+    correctAnswerText: "Benar. Terapkan ini di area kerja.",
+    wrongAnswerText: "Salah. Silakan periksa kembali.",
+    sendDeepToInput: "Kirim isi pembelajaran ke kolom input",
+    translateDeep: "Terjemahkan pembelajaran",
+    inputLabel: "Kalimat input / teks hasil ekstraksi PDF",
+    pdfUpload: "Unggah PDF",
+    pdfGuide: "Hanya PDF berbasis teks yang didukung. PDF hasil scan tidak diproses OCR.",
+    translate: "Terjemahkan",
+    translating: "Sedang menerjemahkan...",
+    speak: "Output suara",
+    stop: "Hentikan suara",
+    resultLabel: "Hasil terjemahan",
+    resultPlaceholder: "Hasil terjemahan akan ditampilkan di sini. Anda dapat mengeditnya jika diperlukan.",
+    statusPrefix: "Status",
+    initialStatus: "Pilih bahasa pelatihan, bahasa terjemahan, dan item 8QB.",
+    selectedStatus: "Item 8QB yang dipilih telah dimasukkan.",
+    languageChanged: "Bahasa layar / pelatihan telah diubah.",
+    translateLanguageChanged: "Bahasa terjemahan telah diubah.",
+    deepLoaded: "Isi pembelajaran mendalam telah dimasukkan.",
+    emptyInput: "Masukkan kalimat yang akan diterjemahkan.",
+    translatingStatus: "Sedang menerjemahkan. Mohon tunggu.",
+    translatedStatus: "Terjemahan selesai.",
+    pdfOnly: "Hanya file PDF yang dapat diunggah.",
+    pdfLoading: "Sedang mengekstrak teks dari PDF.",
+    pdfLoaded: "Teks PDF telah otomatis dimasukkan.",
+    pdfFail: "Gagal mengunggah PDF atau mengekstrak teks.",
+    noSpeakText: "Tidak ada teks untuk dibacakan.",
+    speaking: "Output suara sedang berjalan.",
+    speakDone: "Output suara selesai.",
+    speakError: "Terjadi kesalahan output suara. PC ini mungkin tidak memiliki suara untuk bahasa yang dipilih.",
+    speakStopped: "Output suara dihentikan.",
+    deepWhyText: "Item ini adalah aturan dasar yang harus dipatuhi untuk menjaga kualitas, keselamatan, dan kepuasan pelanggan.",
+    deepExampleText: "Jika aturan ini tidak dipatuhi, dapat terjadi barang tercampur, bagian terlewat, salah rakit, inspeksi terlewat, atau kecelakaan kerja.",
+    deepCheckText: "Sebelum mulai bekerja, dapatkah Anda menjelaskan bagaimana Anda akan mematuhi item ini?",
+    quizOptionCorrect: "Periksa sesuai standar dan kriteria, lalu segera ambil tindakan.",
+    quizOptionBad1: "Jika sibuk, lanjutkan pekerjaan tanpa memeriksa.",
+    quizOptionBad2: "Memutuskan sendiri tanpa melapor kepada GAP Leader.",
+    quizOptionBad3: "Meletakkan barang mencurigakan bersama barang baik."
+  }
+};
+
+const eightQbByLanguage: Record<LanguageCode, string[]> = {
+  ko: [
+    "표준작업을 반드시 준수하십시오.",
+    "이상이 발생하면 즉시 작업을 멈추고 갭리더에게 보고하십시오.",
+    "불량품과 의심품은 정상품과 섞이지 않도록 격리하십시오.",
+    "작업자, 설비, 자재, 작업방법이 변경되면 반드시 확인하십시오.",
+    "검사 기준과 검사 위치를 정확히 확인하십시오.",
+    "제품 라벨, 박스 라벨, 식별표를 반드시 확인하십시오.",
+    "작업장 정리정돈을 유지하여 혼입과 누락을 방지하십시오.",
+    "안전이 가장 중요합니다. 위험하면 즉시 작업을 중지하십시오."
+  ],
+  en: [
+    "Always follow the standard work instructions.",
+    "If an abnormal condition occurs, stop work immediately and report it to the GAP Leader.",
+    "Separate defective and suspected parts so they do not mix with good parts.",
+    "When the operator, equipment, material, or method changes, check carefully.",
+    "Check the inspection standard and inspection location accurately.",
+    "Always check the product label, box label, and identification tag.",
+    "Keep the workplace organized to prevent mixing and missing parts.",
+    "Safety is the most important. If it is dangerous, stop work immediately."
+  ],
+  vi: [
+    "Luôn tuân thủ thao tác tiêu chuẩn.",
+    "Nếu có bất thường, hãy dừng công việc ngay và báo cho GAP Leader.",
+    "Cách ly hàng lỗi và hàng nghi ngờ để không lẫn với hàng tốt.",
+    "Khi thay đổi người thao tác, thiết bị, vật liệu hoặc phương pháp, phải kiểm tra.",
+    "Kiểm tra chính xác tiêu chuẩn kiểm tra và vị trí kiểm tra.",
+    "Luôn kiểm tra nhãn sản phẩm, nhãn thùng và phiếu nhận dạng.",
+    "Giữ nơi làm việc gọn gàng để tránh lẫn hàng và thiếu sót.",
+    "An toàn là quan trọng nhất. Nếu nguy hiểm, hãy dừng công việc ngay."
+  ],
+  bn: [
+    "সবসময় স্ট্যান্ডার্ড কাজের নির্দেশনা অনুসরণ করুন।",
+    "অস্বাভাবিক অবস্থা হলে সঙ্গে সঙ্গে কাজ বন্ধ করুন এবং GAP Leader-কে জানান।",
+    "ত্রুটিপূর্ণ ও সন্দেহজনক পণ্য ভালো পণ্যের সঙ্গে মিশতে দেবেন না, আলাদা রাখুন।",
+    "অপারেটর, যন্ত্র, উপকরণ বা পদ্ধতি পরিবর্তন হলে অবশ্যই পরীক্ষা করুন।",
+    "পরীক্ষার মানদণ্ড এবং পরীক্ষার স্থান সঠিকভাবে 확인 করুন।",
+    "পণ্যের লেবেল, বক্স লেবেল এবং পরিচয় ট্যাগ অবশ্যই 확인 করুন।",
+    "মিশ্রণ ও বাদ পড়া রোধ করতে কর্মস্থল পরিষ্কার ও গোছানো রাখুন।",
+    "নিরাপত্তা সবচেয়ে গুরুত্বপূর্ণ। বিপদ হলে সঙ্গে সঙ্গে কাজ বন্ধ করুন।"
+  ],
+  uz: [
+    "Har doim standart ish ko‘rsatmalariga amal qiling.",
+    "Agar noodatiy holat bo‘lsa, ishni darhol to‘xtating va GAP Leaderga xabar bering.",
+    "Nuqsonli va shubhali detallarni yaxshi detallar bilan aralashtirmaslik uchun ajrating.",
+    "Operator, uskuna, material yoki ish usuli o‘zgarsa, albatta tekshiring.",
+    "Tekshiruv standarti va tekshiruv joyini aniq tekshiring.",
+    "Mahsulot yorlig‘i, quti yorlig‘i va identifikatsiya belgisini doimo tekshiring.",
+    "Aralashish va yetishmaslikni oldini olish uchun ish joyini tartibli saqlang.",
+    "Xavfsizlik eng muhim. Xavf bo‘lsa, ishni darhol to‘xtating."
+  ],
+  ru: [
+    "Всегда соблюдайте стандартную работу.",
+    "При возникновении отклонения немедленно остановите работу и сообщите GAP Leader.",
+    "Отделяйте дефектные и подозрительные изделия, чтобы они не смешивались с хорошими изделиями.",
+    "Если изменились оператор, оборудование, материал или метод работы, обязательно выполните проверку.",
+    "Точно проверьте стандарт контроля и место контроля.",
+    "Всегда проверяйте этикетку изделия, этикетку коробки и идентификационную бирку.",
+    "Поддерживайте порядок на рабочем месте, чтобы предотвратить смешивание и пропуски.",
+    "Безопасность важнее всего. Если опасно, немедленно остановите работу."
+  ],
+  ur: [
+    "ہمیشہ معیاری کام کی ہدایات پر عمل کریں۔",
+    "اگر کوئی غیر معمولی حالت ہو تو فوراً کام روکیں اور GAP Leader کو رپورٹ کریں۔",
+    "خراب اور مشکوک پرزوں کو اچھے پرزوں سے ملنے سے بچانے کے لیے الگ رکھیں۔",
+    "آپریٹر، مشین، مواد یا کام کا طریقہ تبدیل ہو تو لازمی چیک کریں۔",
+    "معائنہ معیار اور معائنہ مقام کو درست طریقے سے چیک کریں۔",
+    "مصنوعات کا لیبل، باکس لیبل اور شناختی ٹیگ لازمی چیک کریں۔",
+    "مکسنگ اور کمی کو روکنے کے لیے کام کی جگہ صاف اور منظم رکھیں۔",
+    "حفاظت سب سے اہم ہے۔ خطرہ ہو تو فوراً کام روک دیں۔"
+  ],
+  ne: [
+    "सधैं मानक कार्य निर्देशन पालना गर्नुहोस्।",
+    "असामान्य अवस्था भएमा तुरुन्त काम रोक्नुहोस् र GAP Leader लाई रिपोर्ट गर्नुहोस्।",
+    "खराब र शंकास्पद सामानलाई राम्रो सामानसँग नमिसिने गरी अलग गर्नुहोस्।",
+    "अपरेटर, उपकरण, सामग्री वा काम गर्ने तरिका परिवर्तन भएमा अनिवार्य जाँच गर्नुहोस्।",
+    "निरीक्षण मापदण्ड र निरीक्षण स्थान ठीकसँग जाँच गर्नुहोस्।",
+    "उत्पादन लेबल, बक्स लेबल र पहिचान ट्याग अनिवार्य जाँच गर्नुहोस्।",
+    "मिसावट र छुट हुन नदिन कार्यस्थल सफा र व्यवस्थित राख्नुहोस्।",
+    "सुरक्षा सबैभन्दा महत्त्वपूर्ण छ। जोखिम भएमा तुरुन्त काम रोक्नुहोस्।"
+  ],
+  zh: [
+    "必须遵守标准作业。",
+    "发生异常时，请立即停止作业并报告给 GAP Leader。",
+    "不良品和可疑品必须隔离，防止与合格品混在一起。",
+    "人员、设备、材料或作业方法发生变化时，必须进行确认。",
+    "请准确确认检查标准和检查位置。",
+    "必须确认产品标签、箱标签和识别标签。",
+    "保持工作场所整洁，防止混入和漏装。",
+    "安全最重要。如有危险，请立即停止作业。"
+  ],
+  id: [
+    "Selalu patuhi pekerjaan standar.",
+    "Jika terjadi kondisi abnormal, segera hentikan pekerjaan dan laporkan kepada GAP Leader.",
+    "Pisahkan produk cacat dan produk mencurigakan agar tidak tercampur dengan produk baik.",
+    "Jika operator, mesin, material, atau metode kerja berubah, pastikan untuk melakukan pengecekan.",
+    "Pastikan standar inspeksi dan lokasi inspeksi diperiksa dengan benar.",
+    "Selalu periksa label produk, label box, dan tanda identifikasi.",
+    "Jaga area kerja tetap rapi untuk mencegah barang tercampur dan bagian terlewat.",
+    "Keselamatan adalah yang paling penting. Jika berbahaya, segera hentikan pekerjaan."
+  ]
+};
+
+
+type DeepLearningDetail = {
+  why: string;
+  example: string;
+  check: string;
+  quizOptions: string[];
+};
+
+const deepLearningDetails: Record<"ko" | "en" | "zh", DeepLearningDetail[]> = {
+  ko: [
+    {
+      why: "표준작업은 품질과 안전을 일정하게 유지하기 위한 기준입니다. 작업자가 임의로 순서나 방법을 바꾸면 같은 제품이라도 다른 결과가 나올 수 있습니다.",
+      example: "용접 순서, 체결 순서, 검사 위치를 임의로 바꾸면 누락, 오조립, 리크, 치수 불량이 발생할 수 있습니다.",
+      check: "오늘 작업의 표준작업서, 작업 순서, 검사 포인트를 작업 전에 확인했습니까?",
+      quizOptions: [
+        "표준작업서와 검사 기준을 확인하고 정해진 순서대로 작업한다.",
+        "숙련자는 표준작업서를 보지 않아도 된다.",
+        "작업이 바쁘면 편한 순서로 작업한다.",
+        "이전 작업자가 하던 방식만 보고 따라 한다."
+      ]
+    },
+    {
+      why: "이상 발생 시 계속 작업하면 불량품이 대량으로 만들어질 수 있습니다. 즉시 정지하고 보고해야 문제 확산을 막을 수 있습니다.",
+      example: "치구 위치가 이상하거나, 소리가 다르거나, 제품이 평소와 다르게 맞지 않으면 즉시 작업을 멈추고 GAP Leader에게 알려야 합니다.",
+      check: "이상이 생겼을 때 혼자 판단하지 않고 즉시 정지 후 보고할 수 있습니까?",
+      quizOptions: [
+        "작업을 즉시 멈추고 GAP Leader에게 보고한다.",
+        "잠깐 이상해도 수량을 맞추기 위해 계속 작업한다.",
+        "다음 작업자가 발견할 때까지 기다린다.",
+        "제품을 섞어 놓고 나중에 확인한다."
+      ]
+    },
+    {
+      why: "불량품과 의심품이 정상품과 섞이면 고객에게 불량이 유출될 수 있습니다. 격리는 품질 사고를 막는 가장 기본적인 방어선입니다.",
+      example: "리크 의심품, 라벨 이상품, 치수 의심품은 정상품 박스가 아니라 별도 지정 장소나 빨간 박스에 보관해야 합니다.",
+      check: "불량품과 의심품을 발견했을 때 정상품과 즉시 분리할 수 있습니까?",
+      quizOptions: [
+        "불량품과 의심품을 정상품과 분리하여 지정 장소에 격리한다.",
+        "나중에 확인하려고 정상품 박스 옆에 둔다.",
+        "확실한 불량이 아니면 정상품과 함께 둔다.",
+        "작업대 위 아무 곳에 올려둔다."
+      ]
+    },
+    {
+      why: "작업자, 설비, 자재, 작업방법이 바뀌면 공정 조건이 달라질 수 있습니다. 4M 변경은 반드시 확인해야 합니다.",
+      example: "다른 작업자가 투입되거나, 치구가 교체되거나, 자재 LOT가 변경되거나, 작업 순서가 바뀌면 첫 제품 확인이 필요합니다.",
+      check: "4M 변경이 발생했을 때 어떤 항목을 확인해야 하는지 알고 있습니까?",
+      quizOptions: [
+        "변경 내용을 확인하고 필요 시 첫 제품과 검사 기준을 확인한다.",
+        "자재만 같으면 다른 변경은 확인하지 않아도 된다.",
+        "설비가 돌아가면 문제없는 것으로 본다.",
+        "작업자가 바뀌어도 교육 없이 바로 투입한다."
+      ]
+    },
+    {
+      why: "검사 기준과 검사 위치를 잘못 이해하면 실제 불량을 놓치거나 정상품을 불량으로 판단할 수 있습니다.",
+      example: "용접 비드 검사 위치, 볼트 체결 확인 위치, 라벨 확인 위치가 다르면 미검사나 오판정이 발생할 수 있습니다.",
+      check: "현재 제품의 검사 기준과 검사 위치를 정확히 설명할 수 있습니까?",
+      quizOptions: [
+        "검사 기준과 검사 위치를 확인한 뒤 같은 기준으로 검사한다.",
+        "대충 눈에 보이는 곳만 검사한다.",
+        "전 작업자가 했으니 검사를 생략한다.",
+        "검사 위치가 헷갈려도 생산을 먼저 진행한다."
+      ]
+    },
+    {
+      why: "라벨은 제품 식별과 추적성의 핵심입니다. 라벨 오류는 오출하, 혼입, 고객 클레임으로 이어질 수 있습니다.",
+      example: "제품 라벨, 박스 라벨, 식별표의 품번, LOT, 수량, 방향, 고객 정보가 맞는지 확인해야 합니다.",
+      check: "제품 라벨과 박스 라벨이 서로 일치하는지 확인했습니까?",
+      quizOptions: [
+        "제품 라벨, 박스 라벨, 식별표의 정보를 서로 대조한다.",
+        "라벨이 붙어 있으면 내용은 확인하지 않는다.",
+        "박스 라벨만 맞으면 제품 라벨은 보지 않는다.",
+        "라벨이 애매하면 임의로 판단한다."
+      ]
+    },
+    {
+      why: "정리정돈은 혼입과 누락을 막는 기본 조건입니다. 작업장이 어지러우면 다른 품번이나 의심품이 섞일 가능성이 커집니다.",
+      example: "작업대 위에 다른 품번 제품, 사용한 부품, 불량 의심품이 섞여 있으면 오조립이나 혼입이 발생할 수 있습니다.",
+      check: "작업 전후에 작업대, 부품함, 불량품 보관 장소를 정리했습니까?",
+      quizOptions: [
+        "작업장과 부품을 정리하여 혼입과 누락을 예방한다.",
+        "바쁘면 정리정돈은 나중에 한다.",
+        "빈 박스와 다른 품번 부품을 가까이 둔다.",
+        "작업대 위에 의심품을 함께 둔다."
+      ]
+    },
+    {
+      why: "안전은 품질보다 먼저입니다. 위험한 상태에서 계속 작업하면 작업자 부상과 설비 사고로 이어질 수 있습니다.",
+      example: "손 끼임 위험, 뜨거운 제품, 날카로운 모서리, 설비 이상, 보호구 미착용 상태에서는 즉시 작업을 중지해야 합니다.",
+      check: "위험하다고 느끼면 생산 수량보다 안전을 우선하여 멈출 수 있습니까?",
+      quizOptions: [
+        "위험하면 즉시 작업을 중지하고 안전 조치를 요청한다.",
+        "조금 위험해도 생산량을 맞추기 위해 계속한다.",
+        "보호구가 없어도 짧은 시간은 괜찮다.",
+        "위험 상황을 봐도 다른 사람이 처리할 때까지 기다린다."
+      ]
+    }
+  ],
+  en: [
+    {
+      why: "Standard work keeps quality and safety consistent. If operators change the sequence or method by themselves, the same product can have different results.",
+      example: "Changing the welding sequence, tightening order, or inspection position can cause missing work, wrong assembly, leaks, or dimensional defects.",
+      check: "Before starting work, did you check the standard work instruction, work sequence, and inspection points?",
+      quizOptions: [
+        "Check the standard work and inspection criteria, then follow the defined sequence.",
+        "Experienced operators do not need to check the standard work.",
+        "If busy, work in any convenient order.",
+        "Only copy how the previous operator worked."
+      ]
+    },
+    {
+      why: "If work continues after an abnormal condition, many defective parts can be produced. Stopping and reporting immediately prevents the problem from spreading.",
+      example: "If the jig position looks wrong, the sound is different, or the part does not fit as usual, stop work and inform the GAP Leader.",
+      check: "When an abnormal condition occurs, can you stop and report instead of deciding alone?",
+      quizOptions: [
+        "Stop work immediately and report to the GAP Leader.",
+        "Keep working to meet the quantity target.",
+        "Wait until the next operator finds it.",
+        "Mix the parts and check later."
+      ]
+    },
+    {
+      why: "If defective or suspected parts mix with good parts, defects can escape to the customer. Separation is the first protection against quality accidents.",
+      example: "Leak-suspected parts, label abnormal parts, or dimension-suspected parts must be kept in a designated area or red box, not in a good-parts box.",
+      check: "When you find a defective or suspected part, can you separate it from good parts immediately?",
+      quizOptions: [
+        "Separate defective and suspected parts from good parts in the designated area.",
+        "Put them next to the good-parts box for later check.",
+        "If not confirmed defective, keep them with good parts.",
+        "Place them anywhere on the workbench."
+      ]
+    },
+    {
+      why: "When operator, equipment, material, or method changes, process conditions can change. 4M changes must always be checked.",
+      example: "When a new operator starts, a jig is replaced, material LOT changes, or the work sequence changes, first-piece confirmation may be needed.",
+      check: "Do you know what to check when a 4M change occurs?",
+      quizOptions: [
+        "Check the change and confirm the first part and inspection criteria if needed.",
+        "If the material is the same, no other change needs checking.",
+        "If the equipment runs, it is automatically OK.",
+        "A new operator can start without training."
+      ]
+    },
+    {
+      why: "If the inspection criteria or inspection position is misunderstood, real defects can be missed or good parts can be judged incorrectly.",
+      example: "Wrong welding bead inspection position, bolt check position, or label check position can cause missed inspection or wrong judgment.",
+      check: "Can you explain the inspection criteria and inspection position for the current product?",
+      quizOptions: [
+        "Check the inspection criteria and position, then inspect using the same standard.",
+        "Inspect only the visible area roughly.",
+        "Skip inspection because the previous operator did it.",
+        "Start production first even if the inspection position is unclear."
+      ]
+    },
+    {
+      why: "Labels are essential for identification and traceability. Label errors can cause wrong shipment, mixed parts, and customer claims.",
+      example: "Check that product label, box label, and identification tag match in part number, LOT, quantity, direction, and customer information.",
+      check: "Did you confirm that the product label and box label match?",
+      quizOptions: [
+        "Compare the product label, box label, and identification tag.",
+        "If a label is attached, do not check the details.",
+        "If the box label is correct, ignore the product label.",
+        "If the label is unclear, decide by yourself."
+      ]
+    },
+    {
+      why: "5S and workplace organization prevent mixing and missing parts. A messy workplace increases the chance of mixing other part numbers or suspected parts.",
+      example: "If other part numbers, used parts, or suspected defective parts are mixed on the workbench, wrong assembly or mixing can occur.",
+      check: "Before and after work, did you organize the workbench, parts boxes, and defect storage area?",
+      quizOptions: [
+        "Keep the workplace and parts organized to prevent mixing and missing parts.",
+        "If busy, organize later.",
+        "Keep empty boxes and other part numbers nearby.",
+        "Keep suspected parts together on the workbench."
+      ]
+    },
+    {
+      why: "Safety comes before quality. Continuing work in a dangerous condition can cause injury and equipment accidents.",
+      example: "Stop work immediately if there is a hand-pinch risk, hot part, sharp edge, equipment abnormality, or missing PPE.",
+      check: "If you feel danger, can you stop work and put safety before production quantity?",
+      quizOptions: [
+        "If dangerous, stop work immediately and request safety action.",
+        "Continue working to meet production quantity.",
+        "It is okay to work briefly without PPE.",
+        "Wait for someone else to handle the danger."
+      ]
+    }
+  ],
+  zh: [
+    {
+      why: "标准作业可以保持质量和安全的一致性。作业者擅自改变顺序或方法时，同一产品也可能产生不同结果。",
+      example: "擅自改变焊接顺序、紧固顺序或检查位置，可能导致漏作业、错装、泄漏或尺寸不良。",
+      check: "开始作业前，是否确认了标准作业书、作业顺序和检查点？",
+      quizOptions: [
+        "确认标准作业和检查基准后，按照规定顺序作业。",
+        "熟练工不需要看标准作业。",
+        "忙的时候可以按方便的顺序作业。",
+        "只要照着前一个作业者的方法做即可。"
+      ]
+    },
+    {
+      why: "发生异常后继续作业，可能会大量产生不良品。立即停止并报告可以防止问题扩大。",
+      example: "治具位置异常、声音不同、产品不像平时那样装配时，应立即停止作业并报告 GAP Leader。",
+      check: "发生异常时，能否不自行判断，而是立即停止并报告？",
+      quizOptions: [
+        "立即停止作业并报告 GAP Leader。",
+        "为了完成数量继续作业。",
+        "等下一个作业者发现。",
+        "先混放，之后再确认。"
+      ]
+    },
+    {
+      why: "不良品和可疑品混入合格品，会导致不良流出到客户。隔离是防止质量事故的第一道防线。",
+      example: "泄漏可疑品、标签异常品、尺寸可疑品必须放在指定区域或红箱，不得放入合格品箱。",
+      check: "发现不良品或可疑品时，能否立即与合格品分离？",
+      quizOptions: [
+        "将不良品和可疑品与合格品分开，放在指定区域。",
+        "先放在合格品箱旁边，之后再确认。",
+        "不是确定不良就和合格品放一起。",
+        "随便放在工作台上。"
+      ]
+    },
+    {
+      why: "人员、设备、材料、方法变化时，工艺条件可能改变。4M 变化必须确认。",
+      example: "新作业者投入、治具更换、材料 LOT 变更、作业顺序变更时，可能需要首件确认。",
+      check: "发生 4M 变化时，你知道需要确认什么吗？",
+      quizOptions: [
+        "确认变更内容，必要时确认首件和检查基准。",
+        "材料相同就不需要确认其他变化。",
+        "设备能运行就认为没有问题。",
+        "作业者变更也可以不培训直接投入。"
+      ]
+    },
+    {
+      why: "误解检查基准或检查位置，会导致漏检真正的不良，或把合格品误判为不良。",
+      example: "焊道检查位置、螺栓确认位置、标签确认位置错误，会导致漏检或误判。",
+      check: "你能说明当前产品的检查基准和检查位置吗？",
+      quizOptions: [
+        "确认检查基准和位置后，按同一标准检查。",
+        "只大概检查看得见的地方。",
+        "前一个作业者做过，所以省略检查。",
+        "检查位置不清楚也先生产。"
+      ]
+    },
+    {
+      why: "标签是产品识别和追溯的核心。标签错误可能导致错发、混入和客户投诉。",
+      example: "必须确认产品标签、箱标签、识别标签的品番、LOT、数量、方向和客户信息是否一致。",
+      check: "是否确认产品标签和箱标签一致？",
+      quizOptions: [
+        "核对产品标签、箱标签和识别标签的信息。",
+        "只要贴了标签就不确认内容。",
+        "箱标签正确就不看产品标签。",
+        "标签不清楚时自行判断。"
+      ]
+    },
+    {
+      why: "整理整顿是防止混入和漏装的基本条件。工作场所混乱会增加其他品番或可疑品混入的风险。",
+      example: "工作台上混有其他品番、使用过的部件或可疑不良品时，可能发生错装或混入。",
+      check: "作业前后是否整理了工作台、零件箱和不良品保管场所？",
+      quizOptions: [
+        "整理工作场所和零件，防止混入和漏装。",
+        "忙的时候整理整顿可以以后再做。",
+        "把空箱和其他品番零件放在附近。",
+        "把可疑品一起放在工作台上。"
+      ]
+    },
+    {
+      why: "安全优先于质量。在危险状态下继续作业，可能导致人员受伤和设备事故。",
+      example: "有夹手风险、高温产品、锐利边缘、设备异常或未佩戴保护用品时，应立即停止作业。",
+      check: "感觉危险时，能否停止作业并把安全放在产量之前？",
+      quizOptions: [
+        "危险时立即停止作业并请求安全措施。",
+        "为了完成产量继续作业。",
+        "短时间不戴保护用品也可以。",
+        "看到危险也等别人处理。"
+      ]
+    }
+  ]
+};
+
+function getDeepLearningDetail(language: LanguageCode, index: number): DeepLearningDetail {
+  if (language === "ko" || language === "en" || language === "zh") {
+    return deepLearningDetails[language][index];
+  }
+
+  const localizedText = uiText[language];
+
+  return {
+    why: localizedText.deepWhyText,
+    example: localizedText.deepExampleText,
+    check: localizedText.deepCheckText,
+    quizOptions: [
+      localizedText.quizOptionCorrect,
+      localizedText.quizOptionBad1,
+      localizedText.quizOptionBad2,
+      localizedText.quizOptionBad3
+    ]
+  };
+}
+
+
+const autoPlayLanguageOrder: LanguageCode[] = [
+  "ko",
+  "en",
+  "vi",
+  "bn",
+  "uz",
+  "ru",
+  "ur",
+  "ne",
+  "zh",
+  "id"
 ];
+
+function getValidLanguage(value: string | null): LanguageCode {
+  const matched = languages.find((language) => language.targetCode === value);
+  return matched?.targetCode ?? "ko";
+}
 
 export default function TrainingPage() {
-  const [selectedLang, setSelectedLang] = useState("en");
-  const [inputText, setInputText] = useState("");
-  const [translatedText, setTranslatedText] = useState("");
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uiLanguage, setUiLanguage] = useState<LanguageCode>("ko");
+  const [translateLanguage, setTranslateLanguage] = useState<LanguageCode>("en");
+  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  const [selectedQuizAnswer, setSelectedQuizAnswer] = useState<number | null>(null);
+  const [inputText, setInputText] = useState<string>(eightQbByLanguage.ko[0]);
+  const [translatedText, setTranslatedText] = useState<string>("");
+  const [statusMessage, setStatusMessage] = useState<string>(uiText.ko.initialStatus);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
+  const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false);
+  const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const currentLang = LANGUAGES.find((l) => l.value === selectedLang)!;
+  const text = uiText[uiLanguage];
+  const currentSentences = eightQbByLanguage[uiLanguage];
+  const selectedSentence =
+    selectedItemIndex === null ? null : currentSentences[selectedItemIndex];
+  const deepDetail =
+    selectedItemIndex === null ? null : getDeepLearningDetail(uiLanguage, selectedItemIndex);
 
-  const handleQBClick = (sentence: string) => {
-    setInputText(sentence);
-    setTranslatedText("");
-    setErrorMsg("");
+  const uiLanguageOption = useMemo(() => {
+    return languages.find((language) => language.targetCode === uiLanguage) ?? languages[0];
+  }, [uiLanguage]);
+
+  const translateLanguageOption = useMemo(() => {
+    return languages.find((language) => language.targetCode === translateLanguage) ?? languages[1];
+  }, [translateLanguage]);
+
+  const playAudio = (audioId: string, fallbackText?: string) => {
+    const src = `/audio/${uiLanguage}/${audioId}.mp3`;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    const audio = new Audio(src);
+    audioRef.current = audio;
+    audio.play().catch(() => {
+      if (fallbackText && typeof window !== "undefined") {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(fallbackText);
+        utt.lang = uiLanguageOption.speechCode;
+        window.speechSynthesis.speak(utt);
+      }
+    });
   };
 
-  const handleTranslate = async () => {
-    if (!inputText.trim()) {
-      setErrorMsg("번역할 문장을 입력하거나 8QB 항목을 선택하세요.");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const lang = getValidLanguage(params.get("lang"));
+
+    setUiLanguage(lang);
+    setTranslateLanguage(lang === "ko" ? "en" : lang);
+    setInputText(eightQbByLanguage[lang][0]);
+    setIsAutoPlaying(false);
+    setStatusMessage(uiText[lang].initialStatus);
+  }, []);
+
+  useEffect(() => {
+    if (!isAutoPlaying) {
       return;
     }
-    setIsTranslating(true);
-    setErrorMsg("");
-    setTranslatedText("");
-    try {
-      const res = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: inputText.trim(), target: selectedLang }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setErrorMsg(data.error || "번역에 실패했습니다.");
-      } else {
-        setTranslatedText(data.translatedText || "");
+
+    const timer = window.setTimeout(() => {
+      const currentIndex = autoPlayLanguageOrder.indexOf(uiLanguage);
+      const nextIndex =
+        currentIndex >= 0
+          ? (currentIndex + 1) % autoPlayLanguageOrder.length
+          : 0;
+      const nextLanguage = autoPlayLanguageOrder[nextIndex];
+      const nextItemIndex = selectedItemIndex ?? 0;
+
+      setUiLanguage(nextLanguage);
+      setTranslateLanguage(nextLanguage);
+      setInputText(eightQbByLanguage[nextLanguage][nextItemIndex]);
+      setTranslatedText("");
+      setSelectedQuizAnswer(null);
+      setStatusMessage(uiText[nextLanguage].languageChanged);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
       }
+      const _nextAudio = new Audio(`/audio/${nextLanguage}/q${nextItemIndex + 1}_main.mp3`);
+      audioRef.current = _nextAudio;
+      _nextAudio.play().catch(() => {});
+      window.history.replaceState(null, "", `/training?lang=${nextLanguage}`);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [isAutoPlaying, uiLanguage, selectedItemIndex]);
+
+  const buildDeepLearningText = () => {
+    if (selectedItemIndex === null || !selectedSentence) {
+      return "";
+    }
+
+    return [
+      `[${text.deepLearningTitle}] 8QB ${selectedItemIndex + 1}`,
+      "",
+      `${text.basicSentence}:`,
+      selectedSentence,
+      "",
+      `${text.whyImportant}:`,
+      (deepDetail?.why ?? text.deepWhyText),
+      "",
+      `${text.fieldExample}:`,
+      (deepDetail?.example ?? text.deepExampleText),
+      "",
+      `${text.checkQuestion}:`,
+      (deepDetail?.check ?? text.deepCheckText),
+      "",
+      `${text.quizTitle}:`,
+      text.quizQuestion,
+      `1) ${text.quizOptionCorrect}`,
+      `2) ${text.quizOptionBad1}`,
+      `3) ${text.quizOptionBad2}`,
+      `4) ${text.quizOptionBad3}`
+    ].join("\n");
+  };
+
+  const applyUiLanguage = (languageCode: LanguageCode) => {
+    setUiLanguage(languageCode);
+    setSelectedItemIndex(null);
+    setSelectedQuizAnswer(null);
+    setInputText(eightQbByLanguage[languageCode][0]);
+    setTranslatedText("");
+    setStatusMessage(uiText[languageCode].languageChanged);
+
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel();
+      window.history.replaceState(null, "", `/training?lang=${languageCode}`);
+    }
+  };
+
+  const applyTranslateLanguage = (languageCode: LanguageCode) => {
+    setTranslateLanguage(languageCode);
+    setTranslatedText("");
+    setStatusMessage(text.translateLanguageChanged);
+
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  const handleSelectItem = (index: number) => {
+    setSelectedItemIndex(index);
+    setSelectedQuizAnswer(null);
+    setInputText(currentSentences[index]);
+    setTranslatedText("");
+    setStatusMessage(text.selectedStatus);
+    playAudio(`q${index + 1}_main`, currentSentences[index]);
+  };
+
+  const performTranslate = async (sourceText: string) => {
+    const trimmedText = sourceText.trim();
+
+    if (!trimmedText) {
+      setStatusMessage(text.emptyInput);
+      return;
+    }
+
+    setIsTranslating(true);
+    setStatusMessage(text.translatingStatus);
+
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: trimmedText,
+          target: translateLanguageOption.targetCode
+        })
+      });
+
+      const data = (await response.json()) as TranslateResponse;
+
+      if (!response.ok || data.error) {
+        setStatusMessage(data.error ?? "Translation error.");
+        return;
+      }
+
+      setTranslatedText(data.translatedText ?? "");
+      setStatusMessage(`${text.translatedStatus}${data.provider ? ` (${data.provider})` : ""}`);
     } catch {
-      setErrorMsg("네트워크 오류가 발생했습니다. 다시 시도해 주세요.");
+      setStatusMessage("Translation request failed. Please check network or API settings.");
     } finally {
       setIsTranslating(false);
     }
   };
 
-  const handleSpeak = () => {
-    if (!translatedText.trim()) {
-      setErrorMsg("먼저 번역을 실행하세요.");
+  const handleTranslate = async () => {
+    await performTranslate(inputText);
+  };
+
+  const handleSendDeepToInput = () => {
+    const deepText = buildDeepLearningText();
+
+    if (!deepText) {
+      setStatusMessage(text.noItemSelected);
       return;
     }
-    setErrorMsg("");
+
+    setInputText(deepText);
+    setTranslatedText("");
+    setStatusMessage(text.deepLoaded);
+  };
+
+  const handleTranslateDeep = async () => {
+    const deepText = buildDeepLearningText();
+
+    if (!deepText) {
+      setStatusMessage(text.noItemSelected);
+      return;
+    }
+
+    setInputText(deepText);
+    await performTranslate(deepText);
+  };
+
+  const handlePdfUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setStatusMessage(text.pdfOnly);
+      event.target.value = "";
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setIsPdfLoading(true);
+    setStatusMessage(text.pdfLoading);
+
+    try {
+      const response = await fetch("/api/pdf", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = (await response.json()) as PdfResponse;
+
+      if (!response.ok || data.error) {
+        setStatusMessage(data.error ?? text.pdfFail);
+        return;
+      }
+
+      const extractedText = data.text?.trim() ?? "";
+
+      if (!extractedText) {
+        setStatusMessage(text.pdfFail);
+        return;
+      }
+
+      setInputText(extractedText);
+      setTranslatedText("");
+      setStatusMessage(text.pdfLoaded);
+    } catch {
+      setStatusMessage(text.pdfFail);
+    } finally {
+      setIsPdfLoading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleAutoPlayStart = () => {
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel();
+    }
+
+    setIsAutoPlaying(true);
+    setTranslatedText("");
+    setSelectedQuizAnswer(null);
+    setStatusMessage("자동 재생을 시작합니다. 5초마다 다음 언어로 전환됩니다.");
+    const currentIdx = selectedItemIndex ?? 0;
+    playAudio(`q${currentIdx + 1}_main`, currentSentences[currentIdx]);
+  };
+
+  const handleSpeak = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const textToSpeak = translatedText.trim() || inputText.trim();
+
+    if (!textToSpeak) {
+      setStatusMessage(text.noSpeakText);
+      return;
+    }
+
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(translatedText);
-    utterance.lang = currentLang.speech;
+
+    const languageForSpeech = translatedText.trim()
+      ? translateLanguageOption
+      : uiLanguageOption;
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = languageForSpeech.speechCode;
     utterance.rate = 0.85;
+
     const voices = window.speechSynthesis.getVoices();
-    const matched = voices.find(
-      (v) => v.lang === currentLang.speech || v.lang.startsWith(currentLang.value)
-    );
-    if (matched) utterance.voice = matched;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    const matchedVoice =
+      voices.find((voice) => voice.lang === languageForSpeech.speechCode) ??
+      voices.find((voice) =>
+        voice.lang.toLowerCase().startsWith(languageForSpeech.targetCode)
+      );
+
+    if (matchedVoice) {
+      utterance.voice = matchedVoice;
+    }
+
+    utterance.onstart = () => {
+      setStatusMessage(text.speaking);
+    };
+
+    utterance.onend = () => {
+      setStatusMessage(text.speakDone);
+    };
+
+    utterance.onerror = () => {
+      setStatusMessage(text.speakError);
+    };
+
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleStop = () => {
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
+  const handleStopSpeak = () => {
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel();
+      setIsAutoPlaying(false);
+      setStatusMessage(text.speakStopped);
+    }
   };
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setErrorMsg("");
-    setInputText("PDF에서 텍스트 추출 중...");
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await fetch("/api/pdf", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setErrorMsg(data.error || "PDF 처리에 실패했습니다.");
-        setInputText("");
-      } else {
-        setInputText(data.text || "");
-      }
-    } catch {
-      setErrorMsg("PDF 업로드 중 오류가 발생했습니다.");
-      setInputText("");
-    }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
+  const quizOptions =
+    deepDetail?.quizOptions ?? [
+      text.quizOptionCorrect,
+      text.quizOptionBad1,
+      text.quizOptionBad2,
+      text.quizOptionBad3
+    ];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/">
-          <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-xl text-lg transition-colors">
-            ← 뒤로
-          </button>
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-800">8QB 다국어 교육 번역</h1>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-md p-5 mb-5">
-        <label className="block text-lg font-bold text-gray-700 mb-2">🌐 번역 언어 선택</label>
-        <select
-          value={selectedLang}
-          onChange={(e) => setSelectedLang(e.target.value)}
-          className="w-full border-2 border-gray-300 rounded-xl p-3 text-xl font-semibold text-gray-800 focus:outline-none focus:border-blue-500"
-        >
-          {LANGUAGES.map((lang) => (
-            <option key={lang.value} value={lang.value}>{lang.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-md p-5 mb-5">
-        <p className="text-lg font-bold text-gray-700 mb-3">
-          📋 8QB 항목 선택 (클릭하면 입력창에 들어갑니다)
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {QB_SENTENCES.map((s, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleQBClick(s)}
-              className="bg-gray-50 hover:bg-blue-50 active:bg-blue-100 border-2 border-gray-200 hover:border-blue-400 text-gray-700 text-left rounded-xl p-4 text-base font-medium transition-colors leading-snug"
-            >
-              <span className="inline-block bg-blue-600 text-white rounded-full w-7 h-7 text-center font-bold mr-2 text-sm leading-7">
-                {idx + 1}
-              </span>
-              {s}
-            </button>
-          ))}
+    <main className="min-h-screen bg-gray-100 px-0 py-1">
+      <section className="mx-2 w-[calc(100vw-16px)] max-w-none rounded-3xl bg-white p-3 shadow-lg sm:p-4">
+        <header className="mb-2 border-b border-gray-200 pb-2">
+  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+      <div className="mb-1 flex items-center gap-3">
+        <div>
+          <p className="text-sm font-extrabold tracking-wide text-blue-700">
+            Faurecia Yeongcheon Plant
+          </p>
+          <p className="text-xs font-bold text-gray-500">
+            8QB Multilang Training
+          </p>
         </div>
       </div>
-
-      <div className="bg-white rounded-2xl shadow-md p-5 mb-5">
-        <label className="block text-lg font-bold text-gray-700 mb-2">✏️ 번역할 문장 입력</label>
-        <textarea
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="번역할 문장을 직접 입력하거나 위 버튼을 클릭하세요."
-          rows={4}
-          className="w-full border-2 border-gray-300 rounded-xl p-3 text-lg text-gray-800 focus:outline-none focus:border-blue-500 resize-none"
-        />
-        <div className="mt-3">
-          <label className="block text-base font-semibold text-gray-600 mb-1">📄 PDF 업로드 (텍스트형 PDF)</label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handlePdfUpload}
-            className="block w-full text-base text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-100 file:text-blue-700 file:font-semibold hover:file:bg-blue-200 cursor-pointer"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-4 mb-5">
-        <button
-          onClick={handleTranslate}
-          disabled={isTranslating}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-300 text-white text-xl font-bold py-5 rounded-2xl shadow transition-colors"
-        >
-          {isTranslating ? "번역 중..." : "🔄 번역"}
-        </button>
-        <button
-          onClick={handleSpeak}
-          disabled={isSpeaking || !translatedText}
-          className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-green-300 text-white text-xl font-bold py-5 rounded-2xl shadow transition-colors"
-        >
-          🔊 음성 출력
-        </button>
-        <button
-          onClick={handleStop}
-          className="flex-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xl font-bold py-5 rounded-2xl shadow transition-colors"
-        >
-          ⏹ 음성 중지
-        </button>
-      </div>
-
-      {errorMsg && (
-        <div className="bg-red-50 border-2 border-red-300 text-red-700 rounded-xl p-4 mb-5 text-lg font-semibold">
-          ⚠️ {errorMsg}
-        </div>
-      )}
-
-      <div className="bg-white rounded-2xl shadow-md p-5">
-        <label className="block text-lg font-bold text-gray-700 mb-2">
-          🌏 번역 결과 ({currentLang.label})
-        </label>
-        <textarea
-          value={translatedText}
-          readOnly
-          placeholder="번역 결과가 여기에 표시됩니다."
-          rows={5}
-          className="w-full border-2 border-gray-200 rounded-xl p-3 text-xl text-gray-800 bg-gray-50 resize-none"
-        />
-      </div>
+      <h1 className="text-xl font-extrabold text-gray-900 sm:text-3xl">
+        {text.title}
+      </h1>
+      <p className="mt-1 text-sm font-medium leading-5 text-gray-700">
+        {text.subtitle}
+      </p>
     </div>
+
+    <div className="grid min-w-[280px] grid-cols-2 gap-2">
+      <button
+        type="button"
+        onClick={handleAutoPlayStart}
+        className="rounded-xl bg-green-600 px-3 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-green-700 active:scale-95 sm:text-base"
+      >
+        {isAutoPlaying ? "자동 재생 중" : "자동 재생 시작"}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleStopSpeak}
+        className="rounded-xl bg-red-600 px-3 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-red-700 active:scale-95 sm:text-base"
+      >
+        자동 재생 중지
+      </button>
+    </div>
+  </div>
+</header>
+
+        <div className="grid gap-2 lg:grid-cols-[0.82fr_2.25fr]">
+          <aside className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+            <label className="mb-3 block text-base font-extrabold text-gray-900" htmlFor="uiLanguage">
+              {text.uiLanguageSelect}
+            </label>
+
+            <select
+              id="uiLanguage"
+              value={uiLanguage}
+              onChange={(event) => applyUiLanguage(event.target.value as LanguageCode)}
+              className="mb-3 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-base font-bold text-gray-900 shadow-sm"
+            >
+              {languages.map((language) => (
+                <option key={language.targetCode} value={language.targetCode}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+
+            <h2 className="mb-3 text-base font-extrabold text-gray-900">
+              {text.eightQbTitle}
+            </h2>
+
+            <div className="grid gap-2">
+              {currentSentences.map((sentence, index) => (
+                <button
+                  key={sentence}
+                  type="button"
+                  onClick={() => handleSelectItem(index)}
+                  className={
+                    selectedItemIndex === index
+                      ? "rounded-xl border-2 border-blue-600 bg-blue-50 px-3 py-3 text-left text-sm font-extrabold leading-5 text-gray-900 shadow-sm transition active:scale-[0.99]"
+                      : "rounded-xl border border-gray-300 bg-white px-3 py-2 text-left text-sm font-extrabold leading-5 text-gray-900 shadow-sm transition hover:bg-blue-50 active:scale-[0.99]"
+                  }
+                >
+                  <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-sm font-extrabold text-blue-700">
+                    {index + 1}
+                  </span>
+                  {sentence}
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-3 lg:grid lg:grid-cols-[1.05fr_1.1fr] lg:items-start lg:gap-2">
+            <div className="mb-2 grid gap-2 lg:col-span-2 lg:grid-cols-[0.7fr_0.3fr]">
+              <div>
+                <label
+                  className="mb-3 block text-base font-extrabold text-gray-900"
+                  htmlFor="translateLanguage"
+                >
+                  {text.translateLanguageSelect}
+                </label>
+                <select
+                  id="translateLanguage"
+                  value={translateLanguage}
+                  onChange={(event) =>
+                    applyTranslateLanguage(event.target.value as LanguageCode)
+                  }
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-base font-bold text-gray-900 shadow-sm"
+                >
+                  {languages.map((language) => (
+                    <option key={language.targetCode} value={language.targetCode}>
+                      {language.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="hidden">
+                <p className="text-base font-bold text-blue-900">
+                  {text.uiLanguageSelect}: {uiLanguageOption.shortLabel}
+                </p>
+                <p className="mt-2 text-base font-bold text-blue-900">
+                  {text.translateLanguageSelect}: {translateLanguageOption.shortLabel}
+                </p>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleSpeak}
+                    className="rounded-2xl bg-green-600 px-4 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-green-700 active:scale-95"
+                  >
+                    {isAutoPlaying ? "자동 재생 중..." : "자동 재생 시작"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleStopSpeak}
+                    className="rounded-2xl bg-red-600 px-4 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-red-700 active:scale-95"
+                  >
+                    자동 재생 중지
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-2 rounded-2xl border border-gray-200 bg-white p-3 lg:col-start-1 lg:row-start-2 lg:row-span-4 lg:row-span-4">
+              <h2 className="mb-4 text-xl font-extrabold text-gray-900">
+                {text.deepLearningTitle}
+              </h2>
+
+              {selectedItemIndex === null || !selectedSentence ? (
+                <p className="text-base font-bold leading-6 text-gray-600">
+                  {text.noItemSelected}
+                </p>
+              ) : (
+                <div className="grid gap-2">
+                  <div className="rounded-2xl bg-gray-50 p-4 cursor-pointer" onClick={() => { if (selectedItemIndex !== null) playAudio(`q${selectedItemIndex + 1}_main`, selectedSentence ?? ""); }}>
+                    <h3 className="text-sm font-extrabold text-blue-700">
+                      {text.basicSentence}
+                    </h3>
+                    <p className="mt-2 text-base font-extrabold leading-7 text-gray-900">
+                      {selectedSentence}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-gray-50 p-4 cursor-pointer" onClick={() => { if (selectedItemIndex !== null) playAudio(`q${selectedItemIndex + 1}_why`, deepDetail?.why ?? ""); }}>
+                    <h3 className="text-sm font-extrabold text-blue-700">
+                      {text.whyImportant}
+                    </h3>
+                    <p className="mt-2 text-base font-bold leading-6 text-gray-800">
+                      {deepDetail?.why ?? ""}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-gray-50 p-4 cursor-pointer" onClick={() => { if (selectedItemIndex !== null) playAudio(`q${selectedItemIndex + 1}_example`, deepDetail?.example ?? ""); }}>
+                    <h3 className="text-sm font-extrabold text-blue-700">
+                      {text.fieldExample}
+                    </h3>
+                    <p className="mt-2 text-base font-bold leading-6 text-gray-800">
+                      {deepDetail?.example ?? ""}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-gray-50 p-4 cursor-pointer" onClick={() => { if (selectedItemIndex !== null) playAudio(`q${selectedItemIndex + 1}_check`, deepDetail?.check ?? ""); }}>
+                    <h3 className="text-sm font-extrabold text-blue-700">
+                      {text.checkQuestion}
+                    </h3>
+                    <p className="mt-2 text-base font-bold leading-6 text-gray-800">
+                      {deepDetail?.check ?? ""}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
+                    <h3 className="mb-3 text-base font-extrabold text-yellow-900">
+                      {text.quizTitle}
+                    </h3>
+                    <p className="mb-4 text-base font-extrabold leading-6 text-gray-900 cursor-pointer" onClick={() => { if (selectedItemIndex !== null) playAudio(`q${selectedItemIndex + 1}_quiz_question`, text.quizQuestion); }}>
+                      {text.quizQuestion}
+                    </p>
+
+                    <div className="grid gap-2">
+                      {quizOptions.map((option, index) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => { setSelectedQuizAnswer(index); if (selectedItemIndex !== null) { const _segs = ["quiz_a","quiz_b","quiz_c","quiz_d"]; playAudio(`q${selectedItemIndex + 1}_${_segs[index]}`, option); } }}
+                          className={
+                            selectedQuizAnswer === index
+                              ? index === 0
+                                ? "rounded-2xl border-2 border-green-600 bg-green-100 p-4 text-left text-base font-extrabold text-gray-900"
+                                : "rounded-2xl border-2 border-red-600 bg-red-100 p-4 text-left text-base font-extrabold text-gray-900"
+                              : "rounded-2xl border border-gray-300 bg-white p-4 text-left text-base font-extrabold text-gray-900 hover:bg-yellow-100"
+                          }
+                        >
+                          {index + 1}. {option}
+                        </button>
+                      ))}
+                    </div>
+
+                    {selectedQuizAnswer !== null && (
+                      <div
+                        className={
+                          selectedQuizAnswer === 0
+                            ? "mt-4 rounded-2xl border border-green-300 bg-green-50 p-4 text-base font-extrabold text-green-900"
+                            : "mt-4 rounded-2xl border border-red-300 bg-red-50 p-4 text-base font-extrabold text-red-900"
+                        }
+                      >
+                        {selectedQuizAnswer === 0
+                          ? text.correctAnswerText
+                          : text.wrongAnswerText}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleSendDeepToInput}
+                      className="rounded-xl bg-gray-900 px-3 py-2 text-sm font-extrabold text-white whitespace-nowrap shadow-md transition hover:bg-black active:scale-95"
+                    >
+                      {text.sendDeepToInput}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleTranslateDeep}
+                      disabled={isTranslating}
+                      className="rounded-xl bg-purple-600 px-3 py-2 text-sm font-extrabold text-white whitespace-nowrap shadow-md transition hover:bg-purple-700 active:scale-95"
+                    >
+                      {text.translateDeep}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-3">
+              <label className="mb-3 block text-base font-extrabold text-gray-900" htmlFor="inputText">
+                {text.inputLabel}
+              </label>
+              <textarea
+                id="inputText"
+                value={inputText}
+                onChange={(event) => setInputText(event.target.value)}
+                rows={5}
+                className="w-full rounded-2xl border border-gray-300 bg-white p-3 text-sm font-semibold leading-6 text-gray-900 shadow-sm"
+              />
+            </div>
+
+            <div className="mb-2 rounded-xl border border-dashed border-gray-300 bg-white p-2 lg:col-start-2 lg:row-start-3">
+              <label className="mb-3 block text-base font-extrabold text-gray-900" htmlFor="pdfFile">
+                {text.pdfUpload}
+              </label>
+              <input
+                id="pdfFile"
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={handlePdfUpload}
+                disabled={isPdfLoading}
+                className="w-full rounded-xl border border-gray-300 bg-gray-50 p-4 text-base font-bold"
+              />
+              <p className="mt-2 text-xs font-medium text-gray-600">
+                {text.pdfGuide}
+              </p>
+            </div>
+
+            <div className="mb-2 grid gap-2 sm:grid-cols-3 lg:col-start-2 lg:row-start-4">
+              <button
+                type="button"
+                onClick={handleTranslate}
+                disabled={isTranslating || isPdfLoading}
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-extrabold text-white whitespace-nowrap shadow-md transition hover:bg-blue-700 active:scale-95"
+              >
+                {isTranslating ? text.translating : text.translate}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSpeak}
+        className="rounded-xl bg-green-600 px-3 py-2 text-sm font-extrabold text-white whitespace-nowrap shadow-md transition hover:bg-green-700 active:scale-95"
+              >
+                {text.speak}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleStopSpeak}
+                className="rounded-xl bg-red-600 px-3 py-2 text-sm font-extrabold text-white whitespace-nowrap shadow-md transition hover:bg-red-700 active:scale-95"
+              >
+                {text.stop}
+              </button>
+            </div>
+
+            <div className="mb-3">
+              <label
+                className="mb-3 block text-base font-extrabold text-gray-900"
+                htmlFor="translatedText"
+              >
+                {text.resultLabel}
+              </label>
+              <textarea
+                id="translatedText"
+                value={translatedText}
+                onChange={(event) => setTranslatedText(event.target.value)}
+                rows={5}
+                className="w-full rounded-2xl border border-gray-300 bg-white p-3 text-sm font-semibold leading-6 text-gray-900 shadow-sm"
+                placeholder={text.resultPlaceholder}
+              />
+            </div>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-extrabold leading-6 text-blue-900 lg:col-start-1 lg:row-start-6">
+              {text.statusPrefix}: {statusMessage}
+            </div>
+          </section>
+        </div>
+
+        <footer className="mt-8 text-center text-base font-semibold text-gray-500">
+          © OH Young-Hwan
+        </footer>
+      </section>
+    </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
